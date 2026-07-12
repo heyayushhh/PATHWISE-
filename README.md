@@ -8,7 +8,7 @@ A modern AI-powered Career Intelligence Platform that helps users discover perso
 - **Backend 1 (Express)**: Node.js, Express.js, JWT, Google OAuth
 - **Backend 2 (FastAPI)**: Python, FastAPI, LangGraph, AI Agents
 - **Databases**: PostgreSQL, Neo4j, Redis, Qdrant
-- **Deployment**: Docker, Docker Compose, NGINX, Vercel, Railway
+- **Deployment**: Docker, Docker Compose, NGINX, AWS EC2 (Self-hosted), GitHub Actions, Custom Domain Name
 
 ## Architecture
 
