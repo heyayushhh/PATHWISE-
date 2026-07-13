@@ -18,15 +18,17 @@ Microservice Architecture: Frontend → Express Backend → FastAPI AI Backend �
 
 ```
 PATHWISE/
+│
 ├── apps/
 │   ├── frontend/        # Next.js Frontend
 │   ├── ms1-core-api/    # Express.js Backend (Microservice 1)
 │   └── ms2-ai-engine/   # FastAPI AI Backend (Microservice 2)
+│
 ├── packages/
 │   ├── shared-types/    # Shared TypeScript types
 │   ├── shared-utils/    # Shared utilities
 │   └── ui/              # Shared UI components
-├── docker/              # Dockerfiles
+│
 ├── docs/                # Documentation
 │   ├── 01-PRD.md
 │   ├── 02-Architecture.md
@@ -34,9 +36,26 @@ PATHWISE/
 │   ├── 04-API-Design.md
 │   ├── 05-Product-Flow.md
 │   └── 06-Development-Notes.md
+│
+├── docker/              # Dockerfiles
+│   ├── frontend/
+│   ├── ms1/
+│   ├── ms2/
+│   ├── postgres/
+│   └── redis/
+│
+├── scripts/
+│
 ├── .github/             # GitHub Actions workflows
+│
+├── .vscode/             # VS Code settings
+│
 ├── docker-compose.yml   # Local development stack
 ├── package.json
+├── pnpm-workspace.yaml  # pnpm monorepo config
+├── turbo.json           # Turborepo config
+├── .gitignore
+├── .env.example
 └── README.md
 ```
 

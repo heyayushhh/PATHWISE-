@@ -409,14 +409,24 @@ docs/
     06-Development-Notes.md
 
 docker/
+    frontend/
+    ms1/
+    ms2/
+    postgres/
+    redis/
+
+scripts/
 
 .github/
 
+.vscode/
+
 README.md
-
 docker-compose.yml
-
 package.json
+pnpm-workspace.yaml
+turbo.json
+.env.example
 
 ----------------------------------------------------------
 MICROSERVICES

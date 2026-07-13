@@ -23,7 +23,6 @@ build/
 *.egg-info/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -43,3 +42,10 @@ pnpm-debug.log*
 
 # Docker
 docker-compose.override.yml
+
+# Turborepo
+.turbo/
+
+# pnpm
+pnpm-lock.yaml
+
