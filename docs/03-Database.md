@@ -27,7 +27,6 @@ Manage user registration, login, authentication, authorization, and account secu
 - JWT Authentication
 - Role-Based Access Control (RBAC)
 - Secure Session Management
-
 ### User Input
 
 - First Name
