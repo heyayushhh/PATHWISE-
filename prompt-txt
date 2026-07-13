@@ -392,14 +392,21 @@ High-level structure
 
 apps/
     frontend/
-    api/
-    ai-service/
+    ms1-core-api/
+    ms2-ai-engine/
 
 packages/
     shared-types/
-    config/
+    shared-utils/
+    ui/
 
 docs/
+    01-PRD.md
+    02-Architecture.md
+    03-Database.md
+    04-API-Design.md
+    05-Product-Flow.md
+    06-Development-Notes.md
 
 docker/
 
@@ -408,6 +415,8 @@ docker/
 README.md
 
 docker-compose.yml
+
+package.json
 
 ----------------------------------------------------------
 MICROSERVICES
