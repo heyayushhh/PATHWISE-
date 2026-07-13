@@ -1,12 +1,8 @@
 {
   "name": "pathwise",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo run dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "format": "turbo format",

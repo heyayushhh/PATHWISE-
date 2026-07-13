@@ -1,6 +1,10 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
-app = FastAPI()
+# Load environment variables
+load_dotenv()
+
+app = FastAPI(title="PathWise AI Engine")
 
 
 @app.get("/health")
