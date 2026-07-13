@@ -1,0 +1,8 @@
+fastapi==0.115.5
+uvicorn==0.32.0
+pydantic==2.10.3
+langchain==0.3.20
+langgraph==0.2.63
+openai==1.55.0
+neo4j==5.27.0
+python-dotenv==1.0.1

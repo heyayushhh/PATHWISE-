@@ -548,3 +548,575 @@ Always optimize for maintainability, scalability and readability.
 Whenever we finalize a design decision, treat it as the latest version of the project unless I explicitly replace it.
 
 End of Prompt 1.
+---------------------------------------------------------------------------------------------------------------------------------------------------
+# Prompt 2A.1
+
+PROJECT STATE 
+
+Project Name: PathWise
+
+Sprint: 2
+
+Current Milestone: Bootstrap & Development Environment
+
+Completed:
+- Product Requirement Document (PRD)
+- Product Flow
+- System Architecture
+- Database Design (Initial)
+- PostgreSQL ER Diagram
+- Documentation
+- Monorepo Planning
+
+Current Objective
+
+Bootstrap the entire project into a production-grade monorepo without implementing any business logic.
+
+The goal of this sprint is ONLY to prepare the complete development environment.
+
+DO NOT implement authentication.
+
+DO NOT implement CRUD.
+
+DO NOT implement AI.
+
+DO NOT implement APIs.
+
+DO NOT generate frontend pages.
+
+DO NOT create database tables.
+
+ONLY bootstrap the project.
+
+======================================================
+
+PROJECT ARCHITECTURE
+
+The project follows a Microservices Architecture.
+
+There will be one frontend and two backend services.
+
+Frontend
+- Next.js
+- React
+- TypeScript
+- TailwindCSS
+
+Backend MS1
+- Node.js
+- Express
+- TypeScript
+
+Backend MS2
+- Python
+- FastAPI
+
+Database
+
+PostgreSQL
+
+Neo4j
+
+Redis
+
+Deployment
+
+Docker
+
+Docker Compose
+
+AWS EC2
+
+======================================================
+
+MONOREPO REQUIREMENTS
+
+Use
+
+pnpm
+
+Use
+
+Turborepo
+
+DO NOT use npm workspaces.
+
+DO NOT use yarn.
+
+======================================================
+
+CREATE THIS EXACT FOLDER STRUCTURE
+
+PATHWISE/
+
+apps/
+
+frontend/
+
+ms1-core-api/
+
+ms2-ai-engine/
+
+packages/
+
+shared-types/
+
+shared-utils/
+
+ui/
+
+docs/
+
+docker/
+
+frontend/
+
+ms1/
+
+ms2/
+
+postgres/
+
+redis/
+
+scripts/
+
+.github/
+
+.vscode/
+
+======================================================
+
+ROOT FILES
+
+Create
+
+package.json
+
+pnpm-workspace.yaml
+
+turbo.json
+
+.env.example
+
+README.md
+
+.gitignore
+
+docker-compose.yml
+
+======================================================
+
+ROOT PACKAGE.JSON
+
+Configure Turborepo scripts.
+
+Include
+
+dev
+
+build
+
+lint
+
+format
+
+test
+
+======================================================
+
+PNPM WORKSPACE
+
+Configure
+
+apps/*
+
+packages/*
+
+======================================================
+
+TURBO
+
+Configure proper build pipeline.
+
+Development tasks should not use cache.
+
+======================================================
+
+NEXT.JS
+
+Inside
+
+apps/frontend
+
+Initialize
+
+Next.js
+
+Latest stable version
+
+TypeScript
+
+App Router
+
+TailwindCSS
+
+ESLint
+
+NO sample pages.
+
+NO demo components.
+
+NO authentication.
+
+NO API routes.
+
+NO business logic.
+
+Create only project structure.
+
+======================================================
+
+FRONTEND DEPENDENCIES
+
+Install
+
+TailwindCSS
+
+shadcn/ui
+
+React Hook Form
+
+Zod
+
+Axios
+
+TanStack Query
+
+clsx
+
+lucide-react
+
+Framer Motion
+
+======================================================
+
+CREATE FRONTEND STRUCTURE
+
+src/
+
+app/
+
+components/
+
+features/
+
+hooks/
+
+lib/
+
+providers/
+
+services/
+
+types/
+
+utils/
+
+styles/
+
+assets/
+
+======================================================
+
+MS1
+
+Inside
+
+apps/ms1-core-api
+
+Initialize
+
+Node
+
+Express
+
+TypeScript
+
+Install
+
+Express
+
+TypeScript
+
+tsx
+
+ts-node
+
+dotenv
+
+cors
+
+helmet
+
+zod
+
+bcrypt
+
+jsonwebtoken
+
+drizzle orm
+
+postgres
+
+swagger
+
+pino
+
+pino-http
+
+eslint
+
+prettier
+
+Create folders
+
+src/
+
+config/
+
+controllers/
+
+routes/
+
+middlewares/
+
+services/
+
+repositories/
+
+models/
+
+types/
+
+utils/
+
+validators/
+
+docs/
+
+======================================================
+
+DO NOT
+
+Create APIs.
+
+Create authentication.
+
+Create CRUD.
+
+======================================================
+
+MS2
+
+Inside
+
+apps/ms2-ai-engine
+
+Create Python Virtual Environment.
+
+Install
+
+FastAPI
+
+Uvicorn
+
+Pydantic
+
+LangChain
+
+LangGraph
+
+OpenAI SDK
+
+Neo4j Driver
+
+python-dotenv
+
+Create folders
+
+app/
+
+api/
+
+agents/
+
+core/
+
+config/
+
+models/
+
+schemas/
+
+services/
+
+utils/
+
+prompts/
+
+======================================================
+
+DO NOT
+
+Create AI agents.
+
+Create recommendation logic.
+
+Create business logic.
+
+======================================================
+
+PACKAGES
+
+Create
+
+shared-types
+
+shared-utils
+
+ui
+
+These packages should be empty except for README and package metadata.
+
+======================================================
+
+DOCKER
+
+Create Dockerfiles ONLY.
+
+Do NOT implement application logic.
+
+Create
+
+Dockerfile
+
+for
+
+frontend
+
+ms1
+
+ms2
+
+======================================================
+
+DOCKER COMPOSE
+
+Configure services
+
+frontend
+
+ms1
+
+ms2
+
+postgres
+
+redis
+
+neo4j
+
+Use environment variables.
+
+Do not expose unnecessary ports.
+
+======================================================
+
+VSCODE
+
+Create
+
+settings.json
+
+extensions.json
+
+Recommend
+
+ESLint
+
+Prettier
+
+Docker
+
+Python
+
+TypeScript
+
+TailwindCSS
+
+======================================================
+
+README
+
+Update README to explain
+
+Project
+
+Architecture
+
+Folder Structure
+
+Technology Stack
+
+Setup Instructions
+
+======================================================
+
+GENERAL RULES
+
+Use clean architecture.
+
+Follow consistent naming.
+
+No placeholder code.
+
+No TODO comments.
+
+No unnecessary files.
+
+No duplicate folders.
+
+No generated demo pages.
+
+======================================================
+
+FINAL VERIFICATION
+
+Before completing the task verify
+
+✓ Turborepo works
+
+✓ pnpm workspace works
+
+✓ Frontend dependencies installed
+
+✓ MS1 dependencies installed
+
+✓ MS2 dependencies installed
+
+✓ Dockerfiles created
+
+✓ docker-compose created
+
+✓ Folder structure matches specification
+
+✓ No TypeScript errors
+
+✓ No Python import errors
+
+Return a summary of everything created.
+
+DO NOT continue to Authentication.
+
+STOP after bootstrap is complete.
