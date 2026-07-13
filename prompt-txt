@@ -1120,3 +1120,471 @@ Return a summary of everything created.
 DO NOT continue to Authentication.
 
 STOP after bootstrap is complete.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+PROMPT 2B – Authentication & Core Backend Foundation
+
+PROJECT STATE
+
+Project Name: PathWise
+
+Sprint: 2B
+
+Current Milestone:
+Authentication & Core Backend Foundation
+
+Completed
+
+✓ Product Requirements
+✓ Architecture
+✓ Database Design
+✓ Monorepo Bootstrap
+✓ Frontend Bootstrap
+✓ Express Bootstrap
+✓ FastAPI Bootstrap
+✓ Docker Bootstrap
+
+DO NOT modify the existing architecture unless absolutely necessary.
+
+====================================================
+
+OBJECTIVE
+
+Implement the complete authentication system for PathWise.
+
+This sprint should produce a production-ready authentication module.
+
+Focus ONLY on authentication.
+
+Do NOT implement assessment.
+
+Do NOT implement AI.
+
+Do NOT implement recommendation engine.
+
+Do NOT implement career modules.
+
+====================================================
+
+TECH STACK
+
+Frontend
+
+Next.js
+React
+TypeScript
+TailwindCSS
+React Hook Form
+Zod
+TanStack Query
+Axios
+
+Backend (MS1)
+
+Node.js
+Express
+TypeScript
+Drizzle ORM
+PostgreSQL
+JWT
+bcrypt
+Zod
+Pino
+
+Backend (MS2)
+
+No implementation required.
+
+Only create a /health endpoint.
+
+====================================================
+
+DATABASE
+
+Use PostgreSQL.
+
+Generate Drizzle schema ONLY for
+
+users
+
+profiles
+
+Do not create any additional tables.
+
+Users table should include
+
+id (UUID)
+
+first_name
+
+last_name
+
+email (unique)
+
+password_hash
+
+phone_number (E.164 format)
+
+auth_provider
+
+email_verified
+
+phone_verified
+
+role
+
+account_status
+
+last_login
+
+created_at
+
+updated_at
+
+Profiles table should include
+
+id
+
+user_id
+
+current_stage
+
+assessment_status
+
+created_at
+
+updated_at
+
+One Profile per User.
+
+====================================================
+
+BACKEND (MS1)
+
+Implement folder structure using feature-based architecture.
+
+Example
+
+src/
+
+config/
+
+db/
+
+features/
+
+authentication/
+
+controllers/
+
+services/
+
+repositories/
+
+validators/
+
+routes/
+
+middlewares/
+
+utils/
+
+types/
+
+====================================================
+
+IMPLEMENT
+
+User Registration
+
+User Login
+
+JWT Generation
+
+Refresh Token Support (basic structure)
+
+Password Hashing
+
+Authentication Middleware
+
+Current User Endpoint
+
+Logout Endpoint (structure only)
+
+Health Endpoint
+
+====================================================
+
+VALIDATION
+
+Validate every request using Zod.
+
+Never trust frontend validation.
+
+====================================================
+
+PASSWORDS
+
+Hash using bcrypt.
+
+Never store plain text passwords.
+
+====================================================
+
+JWT
+
+Use
+
+Access Token
+
+Refresh Token
+
+Store JWT Secret in .env
+
+Implement middleware
+
+authenticate()
+
+====================================================
+
+ERROR HANDLING
+
+Create a global error handler.
+
+Create standard API response format.
+
+Example
+
+success
+
+message
+
+data
+
+errors
+
+timestamp
+
+====================================================
+
+LOGGING
+
+Use Pino.
+
+Log
+
+Server startup
+
+Requests
+
+Authentication events
+
+Errors
+
+====================================================
+
+FRONTEND
+
+Implement
+
+Login Page
+
+Register Page
+
+Basic Dashboard
+
+Protected Route
+
+Logout Button
+
+Authentication Context
+
+Axios Client
+
+TanStack Query configuration
+
+====================================================
+
+REGISTER PAGE
+
+Fields
+
+First Name
+
+Last Name
+
+Email
+
+Phone Number
+
+Password
+
+Confirm Password
+
+Stage
+
+Class 10
+
+Class 11
+
+Class 12
+
+====================================================
+
+LOGIN PAGE
+
+Email
+
+Password
+
+====================================================
+
+AUTH FLOW
+
+User
+
+↓
+
+Frontend Validation
+
+↓
+
+Express
+
+↓
+
+Zod Validation
+
+↓
+
+Drizzle
+
+↓
+
+PostgreSQL
+
+↓
+
+JWT
+
+↓
+
+Frontend
+
+↓
+
+Dashboard
+
+====================================================
+
+API ENDPOINTS
+
+POST /api/auth/register
+
+POST /api/auth/login
+
+GET /api/auth/me
+
+POST /api/auth/logout
+
+GET /health
+
+====================================================
+
+FASTAPI
+
+Only implement
+
+GET /health
+
+Return
+
+{
+    "status":"ok"
+}
+
+Do NOT create AI endpoints yet.
+
+====================================================
+
+DOCKER
+
+Update compose if necessary.
+
+Ensure PostgreSQL starts before MS1.
+
+====================================================
+
+TESTING
+
+Verify
+
+✓ Registration
+
+✓ Login
+
+✓ JWT generated
+
+✓ Password hashed
+
+✓ Protected route
+
+✓ Current user endpoint
+
+✓ Logout endpoint
+
+====================================================
+
+GENERAL RULES
+
+No placeholder code.
+
+No TODO comments.
+
+No duplicate code.
+
+Follow clean architecture.
+
+Keep controllers thin.
+
+Business logic must be inside services.
+
+Repositories should only access database.
+
+Use dependency separation.
+
+====================================================
+
+STOP CONDITION
+
+Sprint ends ONLY when
+
+✓ User can register
+
+✓ User can login
+
+✓ JWT works
+
+✓ Protected routes work
+
+✓ Dashboard opens after login
+
+✓ Backend compiles
+
+✓ Frontend compiles
+
+✓ FastAPI health endpoint works
+
+Return a summary of
+
+Files Created
+
+Dependencies Installed
+
+Endpoints Created
+
+Database Schema
+
+Architecture Decisions
+
+Do NOT implement assessment or AI features.

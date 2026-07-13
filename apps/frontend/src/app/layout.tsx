@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
+import { AuthProvider } from "@/providers/AuthProvider";
+import { TanStackProvider } from "@/providers/TanStackProvider";
 
 export const metadata: Metadata = {
   title: "PathWise",
@@ -13,7 +15,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <TanStackProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </TanStackProvider>
+      </body>
     </html>
   );
 }
