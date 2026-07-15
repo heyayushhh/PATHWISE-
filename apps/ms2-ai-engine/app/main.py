@@ -10,3 +10,8 @@ app = FastAPI(title="PathWise AI Engine")
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/connection-test")
+def connection_test():
+    return {"message": "AI Engine Connected"}

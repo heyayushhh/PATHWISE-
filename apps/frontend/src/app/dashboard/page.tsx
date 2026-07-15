@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
-import { logout } from "@/services/auth";
+import { logout, testAiConnection } from "@/services/auth";
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const { state, logout: clearAuth } = useAuth();
   const router = useRouter();
+  const [connectionMessage, setConnectionMessage] = useState("");
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -14,6 +17,19 @@ export default function DashboardPage() {
     } finally {
       clearAuth();
       router.push("/login");
+    }
+  };
+
+  const handleConnectionTest = async () => {
+    try {
+      setIsCheckingConnection(true);
+      setConnectionMessage("");
+      const response = await testAiConnection();
+      setConnectionMessage(response.data?.message ?? "AI Engine Connected");
+    } catch {
+      setConnectionMessage("Connection test failed");
+    } finally {
+      setIsCheckingConnection(false);
     }
   };
 
@@ -39,9 +55,21 @@ export default function DashboardPage() {
           <p className="text-gray-600 mb-2">
             Your current stage: <span className="font-medium">{state.profile?.currentStage}</span>
           </p>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-6">
             Assessment status: <span className="font-medium">{state.profile?.assessmentStatus}</span>
           </p>
+          <button
+            onClick={handleConnectionTest}
+            disabled={isCheckingConnection}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-60"
+          >
+            {isCheckingConnection ? "Checking..." : "Test MS1 -> MS2 Connection"}
+          </button>
+          {connectionMessage ? (
+            <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4 text-green-800 font-medium">
+              {connectionMessage}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

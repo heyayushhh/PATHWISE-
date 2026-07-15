@@ -10,6 +10,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string(),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  AI_ENGINE_URL: z.string().url().default("http://127.0.0.1:3002"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -30,4 +31,5 @@ export const config = {
     accessExpiresIn: parsedEnv.data.JWT_ACCESS_EXPIRES_IN,
     refreshExpiresIn: parsedEnv.data.JWT_REFRESH_EXPIRES_IN,
   },
+  aiEngineUrl: parsedEnv.data.AI_ENGINE_URL,
 };
