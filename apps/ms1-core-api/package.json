@@ -11,7 +11,8 @@
     "format": "prettier --write src/",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/features/assessment/assessment.seed.ts"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
