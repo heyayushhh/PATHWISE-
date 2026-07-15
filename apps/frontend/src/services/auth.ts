@@ -28,3 +28,8 @@ export async function logout() {
   const res = await api.post<ApiResponse>("/auth/logout");
   return res.data;
 }
+
+export async function testAiConnection() {
+  const res = await api.get<ApiResponse<{ message: string }>>("/ai/connection-test");
+  return res.data;
+}
