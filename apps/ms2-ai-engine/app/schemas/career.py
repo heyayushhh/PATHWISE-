@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
 class CareerRequest(BaseModel):
@@ -23,3 +23,53 @@ class CareerRecommendation(BaseModel):
 
 class CareerResponse(BaseModel):
     recommendations: List[CareerRecommendation]
+
+
+# ---------- Assessment-Based Recommendation ----------
+
+
+class AssessmentAnswer(BaseModel):
+    """A single answer from the completed assessment."""
+
+    question: str
+    selectedOption: str
+    score: int = Field(..., ge=1, le=5)
+
+
+class AssessmentPayload(BaseModel):
+    """
+    Payload sent from MS1 after completing static assessment.
+    Contains no database IDs — only human-readable data.
+    """
+
+    userId: str
+    assessmentType: str
+    answers: List[AssessmentAnswer]
+
+
+class CareerDetailResponse(BaseModel):
+    """Detailed career recommendation with full metadata."""
+
+    title: str
+
+    matchScore: float = Field(
+        ..., ge=0, le=100
+    )
+
+    whyRecommended: str
+
+    requiredSkills: List[str]
+
+    futureDemand: str
+
+    salaryRange: str
+
+    learningRoadmapId: Optional[str] = None
+
+
+class AssessmentRecommendationResponse(BaseModel):
+    """Full response from the recommendation engine."""
+
+    careers: List[CareerDetailResponse]
+
+    explanation: str = ""
