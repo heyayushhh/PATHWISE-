@@ -1,5 +1,5 @@
 import { db } from "../../../db";
-import { users, profiles } from "../../../db/schema";
+import { users, profiles } from "../../../db/schemas";
 import { eq } from "drizzle-orm";
 import type { InferInsertModel } from "drizzle-orm";
 
