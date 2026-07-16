@@ -7,7 +7,7 @@ import {
   assessmentResponses,
 } from "../../db/schemas";
 
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 import {
   buildAssessmentPayload,
@@ -142,6 +142,32 @@ export async function saveAssessmentAnswer(
 
   return response;
 
+}
+
+export async function saveDynamicAssessmentAnswer(sessionId: string, answer: string) {
+  const [existingSession] = await db
+    .select()
+    .from(assessmentSessions)
+    .where(eq(assessmentSessions.id, sessionId));
+
+  if (!existingSession) {
+    throw new Error("Assessment session not found");
+  }
+
+  const response = await db
+    .insert(assessmentResponses)
+    .values({
+      sessionId,
+      questionId: "00000000-0000-0000-0000-000000000001",
+      selectedOptionId: "00000000-0000-0000-0000-000000000001",
+    })
+    .returning();
+
+  return {
+    session: existingSession,
+    response: response[0],
+    answer,
+  };
 }
 
 export async function completeStaticAssessment(

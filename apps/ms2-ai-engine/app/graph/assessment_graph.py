@@ -1,125 +1,92 @@
 """
-LangGraph definitions for the adaptive assessment workflow.
+LangGraph definition for the adaptive assessment workflow.
 
-Two separate compiled graphs:
-
-1. assessment_start_graph:
-   start_node → question_generator_node → END
-   Used when the user begins a new assessment.
-
-2. assessment_next_graph:
-   decision_node → (conditional) →
-     if complete: recommendation_node → end_node → END
-     if not:      dynamic_question_selector_node → END
-   Used for each subsequent answer submission.
+The graph now supports a real adaptive loop with deterministic
+question generation, answer analysis, and recommendation generation.
 """
 
 from langgraph.graph import StateGraph, END
 
-from app.graph.assessment_state import (
-    AdaptiveAssessmentState,
-)
+from app.graph.assessment_state import AdaptiveAssessmentState
 from app.graph.assessment_nodes import (
-    start_node,
-    question_generator_node,
+    initialize_assessment_node,
     decision_node,
-    dynamic_question_selector_node,
+    question_generator_node,
+    question_selector_node,
+    answer_analysis_node,
     recommendation_node,
-    end_node,
+    finalize_assessment_node,
 )
 
 
-# ==========================================================
-# Graph 1: Start Assessment
-# ==========================================================
-
-
-start_workflow = StateGraph(AdaptiveAssessmentState)
-
-start_workflow.add_node(
-    "start", start_node
-)
-
-start_workflow.add_node(
-    "generate_questions",
-    question_generator_node
-)
-
-start_workflow.set_entry_point("start")
-
-start_workflow.add_edge(
-    "start", "generate_questions"
-)
-
-start_workflow.add_edge(
-    "generate_questions", END
-)
-
-
-assessment_start_graph = start_workflow.compile()
-
-
-# ==========================================================
-# Graph 2: Process Next Answers
-# ==========================================================
-
-
-def _should_complete(
-    state: AdaptiveAssessmentState
-) -> str:
+def _route_from_decision(state: AdaptiveAssessmentState) -> str:
     """
-    Conditional edge: route to recommendation or
-    more questions based on decision node output.
+    Route the workflow based on the decision node output.
+
+    The decision node is responsible for determining the next action.
+    The router only handles graph navigation.
     """
 
+    next_action = state.get("next_action")
+
+    if next_action:
+        return next_action
+
+    # Fallback safety handling
     if state.get("is_complete", False):
         return "recommendation"
 
-    return "more_questions"
+    if state.get("pending_answer") is not None:
+        return "answer_analysis"
+
+    return "question_generator"
 
 
-next_workflow = StateGraph(AdaptiveAssessmentState)
+workflow = StateGraph(AdaptiveAssessmentState)
 
-next_workflow.add_node(
-    "decision", decision_node
-)
+workflow.add_node("initialize", initialize_assessment_node)
+workflow.add_node("decision", decision_node)
+workflow.add_node("question_generator", question_generator_node)
+workflow.add_node("question_selector", question_selector_node)
+workflow.add_node("answer_analysis", answer_analysis_node)
+workflow.add_node("recommendation", recommendation_node)
+workflow.add_node("finalize", finalize_assessment_node)
 
-next_workflow.add_node(
-    "more_questions",
-    dynamic_question_selector_node
-)
 
-next_workflow.add_node(
-    "recommendation",
-    recommendation_node
-)
+workflow.set_entry_point("initialize")
 
-next_workflow.add_node(
-    "end", end_node
-)
 
-next_workflow.set_entry_point("decision")
+workflow.add_edge("initialize", "decision")
 
-next_workflow.add_conditional_edges(
+workflow.add_conditional_edges(
     "decision",
-    _should_complete,
+    _route_from_decision,
     {
+        "question_generator": "question_generator",
+        "answer_analysis": "answer_analysis",
         "recommendation": "recommendation",
-        "more_questions": "more_questions"
-    }
-)
-
-next_workflow.add_edge(
-    "more_questions", END
-)
-
-next_workflow.add_edge(
-    "recommendation", "end"
-)
-
-next_workflow.add_edge(
-    "end", END
+    },
 )
 
 
-assessment_next_graph = next_workflow.compile()
+workflow.add_edge("question_generator", "question_selector")
+
+# The graph intentionally pauses after generating a question.
+# The checkpointed state is resumed when the user submits an answer.
+workflow.add_edge("question_selector", END)
+
+
+workflow.add_edge("answer_analysis", "decision")
+
+workflow.add_edge("recommendation", "finalize")
+
+workflow.add_edge("finalize", END)
+
+
+adaptive_assessment_graph = workflow.compile()
+
+
+# Compatibility aliases used by the existing career service layer.
+# These point to the same adaptive graph to avoid breaking existing flows.
+assessment_start_graph = adaptive_assessment_graph
+assessment_next_graph = adaptive_assessment_graph
