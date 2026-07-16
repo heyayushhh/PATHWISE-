@@ -3,14 +3,11 @@ import type { Response } from "express";
 import {
   startAssessment,
   getAssessmentQuestions,
-  saveAssessmentAnswer
+  saveAssessmentAnswer,
+  completeStaticAssessment,
 } from "./assessment.service";
 
 import type { AuthenticatedRequest } from "../authentication/types";
-
-import {
-  completeStaticAssessment
-} from "./assessment.service";
 
 
 
@@ -23,7 +20,13 @@ export async function startAssessmentController(
 
 
     const userId =
-      req.user.userId;
+      req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Authentication required",
+      });
+    }
 
 
 
@@ -152,7 +155,9 @@ export async function submitAnswerController(
     const response =
       await saveAssessmentAnswer(
 
-        req.params.sessionId,
+        Array.isArray(req.params.sessionId)
+          ? req.params.sessionId[0]
+          : req.params.sessionId,
 
         questionId,
 
@@ -210,7 +215,9 @@ export async function completeStaticAssessmentController(
 
     const result =
       await completeStaticAssessment(
-        sessionId
+        Array.isArray(req.params.id)
+          ? req.params.id[0]
+          : req.params.id
       );
 
 

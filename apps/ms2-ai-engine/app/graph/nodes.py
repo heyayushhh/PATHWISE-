@@ -1,12 +1,9 @@
 import json
 
-import google.generativeai as genai
-
-import os
-import json
 from app.graph.state import CareerState
 from app.schemas.career import CareerRequest
 from app.prompts.career_prompt import build_career_prompt
+from app.utils.gemini import get_gemini_model
 
 
 def build_prompt_node(state: CareerState):
@@ -28,14 +25,13 @@ def build_prompt_node(state: CareerState):
 
 
 # ---------- Gemini Node ----------
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 
 def gemini_node(state: CareerState):
 
     print("\n========== GEMINI NODE ==========")
+
+    model = get_gemini_model()
 
     response = model.generate_content(state["prompt"])
 

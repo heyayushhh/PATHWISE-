@@ -7,7 +7,13 @@ import {
   assessmentResponses,
 } from "../../db/schemas";
 
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
+
+import {
+  buildAssessmentPayload,
+  getCareerRecommendations,
+  type AssessmentAnswerPayload,
+} from "./assessment.ai";
 
 
 
@@ -138,77 +144,93 @@ export async function saveAssessmentAnswer(
 
 }
 
+export async function saveDynamicAssessmentAnswer(sessionId: string, answer: string) {
+  const [existingSession] = await db
+    .select()
+    .from(assessmentSessions)
+    .where(eq(assessmentSessions.id, sessionId));
+
+  if (!existingSession) {
+    throw new Error("Assessment session not found");
+  }
+
+  const response = await db
+    .insert(assessmentResponses)
+    .values({
+      sessionId,
+      questionId: "00000000-0000-0000-0000-000000000001",
+      selectedOptionId: "00000000-0000-0000-0000-000000000001",
+    })
+    .returning();
+
+  return {
+    session: existingSession,
+    response: response[0],
+    answer,
+  };
+}
+
 export async function completeStaticAssessment(
   sessionId: string
 ) {
-
-  const responses =
-    await db
-      .select()
-      .from(assessmentResponses)
-      .where(
-        eq(
-          assessmentResponses.sessionId,
-          sessionId
-        )
-      );
-
-
-  const session =
-    await db
-      .select()
-      .from(assessmentSessions)
-      .where(
-        eq(
-          assessmentSessions.id,
-          sessionId
-        )
-      );
-
+  const session = await db
+    .select()
+    .from(assessmentSessions)
+    .where(eq(assessmentSessions.id, sessionId));
 
   if (session.length === 0) {
-    throw new Error(
-      "Assessment session not found"
-    );
+    throw new Error("Assessment session not found");
   }
 
+  const responses = await db
+    .select()
+    .from(assessmentResponses)
+    .where(eq(assessmentResponses.sessionId, sessionId));
+
+  const answers: AssessmentAnswerPayload[] = [];
+
+  for (const response of responses) {
+    const [question] = await db
+      .select()
+      .from(questions)
+      .where(eq(questions.id, response.questionId));
+
+    const [option] = await db
+      .select()
+      .from(questionOptions)
+      .where(eq(questionOptions.id, response.selectedOptionId));
+
+    answers.push({
+      question: question?.questionText ?? response.questionId,
+      selectedOption: option?.optionText ?? response.selectedOptionId,
+      score: 3,
+    });
+  }
 
   await db
     .update(assessmentSessions)
     .set({
-
       status: "COMPLETED",
-
-      completedAt:
-        new Date()
-
+      completedAt: new Date(),
     })
-    .where(
-      eq(
-        assessmentSessions.id,
-        sessionId
-      )
-    );
+    .where(eq(assessmentSessions.id, sessionId));
 
+  const updatedSession = await db
+    .select()
+    .from(assessmentSessions)
+    .where(eq(assessmentSessions.id, sessionId));
 
-  const updatedSession =
-    await db
-      .select()
-      .from(assessmentSessions)
-      .where(
-        eq(
-          assessmentSessions.id,
-          sessionId
-        )
-      );
+  const payload = buildAssessmentPayload(
+    session[0].userId,
+    session[0].assessmentType,
+    answers
+  );
 
+  const recommendations = await getCareerRecommendations(payload);
 
   return {
-
     session: updatedSession[0],
-
-    responses
-
+    responses,
+    recommendations,
   };
-
 }

@@ -1,0 +1,4 @@
+app/data/assessments/
+__pycache__/
+*.pyc
+venv/

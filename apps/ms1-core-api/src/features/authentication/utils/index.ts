@@ -2,6 +2,8 @@ import jwt from "jsonwebtoken";
 import { config } from "../../../config";
 import type { JwtPayload, ApiResponse } from "../types";
 
+const jwtSecret = config.jwt.secret as string;
+
 export function createApiResponse<T = null>(
   success: boolean,
   message: string,
@@ -18,17 +20,17 @@ export function createApiResponse<T = null>(
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.accessExpiresIn,
-  });
+  return jwt.sign(payload as object, jwtSecret as any, {
+    expiresIn: config.jwt.accessExpiresIn as any,
+  } as any);
 }
 
 export function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  });
+  return jwt.sign(payload as object, jwtSecret as any, {
+    expiresIn: config.jwt.refreshExpiresIn as any,
+  } as any);
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, config.jwt.secret) as JwtPayload;
+  return jwt.verify(token, jwtSecret) as JwtPayload;
 }
