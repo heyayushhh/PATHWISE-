@@ -58,7 +58,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 interface AuthContextType {
   state: AuthState;
-  login: (user: User, accessToken: string, refreshToken: string) => void;
+  login: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -87,10 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (user: User, accessToken: string, refreshToken: string) => {
+  const login = async (user: User, accessToken: string, refreshToken: string) => {
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
     dispatch({ type: "LOGIN_SUCCESS", payload: { user, accessToken, refreshToken } });
+
+    try {
+      const res = await getMe();
+      if (res.success && res.data) {
+        dispatch({ type: "SET_USER", payload: res.data });
+      }
+    } catch {
+      // Keep the current authenticated state and allow the dashboard to render.
+    }
   };
 
   const logout = () => {
