@@ -5,6 +5,7 @@ import {
   questions,
   questionOptions,
   assessmentResponses,
+  profiles,
 } from "../../db/schemas";
 
 import { eq, asc, and } from "drizzle-orm";
@@ -168,6 +169,47 @@ export async function saveDynamicAssessmentAnswer(sessionId: string, answer: str
     response: response[0],
     answer,
   };
+}
+
+export async function getAssessmentSessionById(sessionId: string) {
+  const [session] = await db
+    .select()
+    .from(assessmentSessions)
+    .where(eq(assessmentSessions.id, sessionId));
+
+  return session ?? null;
+}
+
+export async function updateAssessmentSessionStatus(
+  sessionId: string,
+  status: "IN_PROGRESS" | "COMPLETED",
+) {
+  const [session] = await db
+    .update(assessmentSessions)
+    .set({
+      status,
+      completedAt: status === "COMPLETED" ? new Date() : null,
+    })
+    .where(eq(assessmentSessions.id, sessionId))
+    .returning();
+
+  return session ?? null;
+}
+
+export async function updateProfileAssessmentStatus(
+  userId: string,
+  assessmentStatus: string,
+) {
+  const [profile] = await db
+    .update(profiles)
+    .set({
+      assessmentStatus,
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.userId, userId))
+    .returning();
+
+  return profile ?? null;
 }
 
 export async function completeStaticAssessment(

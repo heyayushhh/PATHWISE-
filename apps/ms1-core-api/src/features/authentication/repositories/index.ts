@@ -37,3 +37,12 @@ export async function getProfileByUserId(userId: string) {
     where: eq(profiles.userId, userId),
   });
 }
+
+export async function updateProfileStage(userId: string, stage: string) {
+  const [profile] = await db
+    .update(profiles)
+    .set({ currentStage: stage, updatedAt: new Date() })
+    .where(eq(profiles.userId, userId))
+    .returning();
+  return profile;
+}

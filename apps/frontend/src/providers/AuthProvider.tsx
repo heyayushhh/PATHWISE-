@@ -13,9 +13,13 @@ interface AuthState {
 
 type AuthAction =
   | { type: "LOGIN_START" }
-  | { type: "LOGIN_SUCCESS"; payload: { user: User; accessToken: string; refreshToken: string } }
+  | {
+      type: "LOGIN_SUCCESS";
+      payload: { user: User; profile: Profile; accessToken: string; refreshToken: string };
+    }
   | { type: "LOGOUT" }
-  | { type: "SET_USER"; payload: { user: User; profile: Profile } };
+  | { type: "SET_USER"; payload: { user: User; profile: Profile } }
+  | { type: "SET_PROFILE"; payload: Profile };
 
 const initialState: AuthState = {
   isAuthenticated: false,
@@ -33,6 +37,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         ...state,
         isAuthenticated: true,
         user: action.payload.user,
+        profile: action.payload.profile,
         isLoading: false,
       };
     case "LOGOUT":
@@ -51,6 +56,11 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         profile: action.payload.profile,
         isLoading: false,
       };
+    case "SET_PROFILE":
+      return {
+        ...state,
+        profile: action.payload,
+      };
     default:
       return state;
   }
@@ -58,8 +68,9 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 interface AuthContextType {
   state: AuthState;
-  login: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
+  login: (user: User, profile: Profile, accessToken: string, refreshToken: string) => void;
   logout: () => void;
+  setProfile: (profile: Profile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,29 +98,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = async (user: User, accessToken: string, refreshToken: string) => {
+  const login = (user: User, profile: Profile, accessToken: string, refreshToken: string) => {
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
-    dispatch({ type: "LOGIN_SUCCESS", payload: { user, accessToken, refreshToken } });
-
-    try {
-      const res = await getMe();
-      if (res.success && res.data) {
-        dispatch({ type: "SET_USER", payload: res.data });
-      }
-    } catch {
-      // Keep the current authenticated state and allow the dashboard to render.
-    }
+    localStorage.setItem("userId", user.id);
+    dispatch({ type: "LOGIN_SUCCESS", payload: { user, profile, accessToken, refreshToken } });
   };
 
   const logout = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userId");
     dispatch({ type: "LOGOUT" });
   };
 
+  const setProfile = (profile: Profile) => {
+    dispatch({ type: "SET_PROFILE", payload: profile });
+  };
+
   return (
-    <AuthContext.Provider value={{ state, login, logout }}>
+    <AuthContext.Provider value={{ state, login, logout, setProfile }}>
       {children}
     </AuthContext.Provider>
   );
@@ -120,5 +128,10 @@ export function useAuth() {
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context;
+  return {
+    ...context.state,
+    login: context.login,
+    logout: context.logout,
+    setProfile: context.setProfile,
+  };
 }

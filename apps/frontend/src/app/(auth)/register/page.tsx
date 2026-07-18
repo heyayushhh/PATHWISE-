@@ -6,26 +6,22 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
 import { register as registerUser } from "@/services/auth";
 import { useAuth } from "@/providers/AuthProvider";
-import { AuthShell } from "@/components/AuthShell";
-import { PasswordInput } from "@/components/PasswordInput";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 
-const registerSchema = z
-  .object({
-    firstName: z.string().trim().min(1, "First name is required"),
-    lastName: z.string().trim().min(1, "Last name is required"),
-    email: z.string().trim().email("Please enter a valid email address"),
-    phoneNumber: z.string().regex(/^\+\d{1,15}$/, "Phone number must be in E.164 format (e.g. +1234567890)"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string(),
-    stage: z.enum(["Class 10", "Class 11", "Class 12"]),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+const registerSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email address"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
@@ -37,7 +33,6 @@ export default function RegisterPage() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      stage: "Class 10",
       firstName: "",
       lastName: "",
       email: "",
@@ -50,179 +45,230 @@ export default function RegisterPage() {
   const { login } = useAuth();
   const router = useRouter();
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const onSubmit = async (data: RegisterFormData) => {
     setApiError(null);
     try {
       const res = await registerUser(data);
       if (res.success && res.data) {
-        await login(res.data.user, res.data.accessToken, res.data.refreshToken);
-        router.push("/dashboard");
+        login(res.data.user, res.data.profile, res.data.accessToken, res.data.refreshToken);
+        router.push("/dashboard/onboarding");
       } else {
-        setApiError(res.message || "Unable to create your account right now.");
+        setApiError(res.message?.trim() || "Unable to create your account right now.");
       }
-    } catch (err: any) {
-      setApiError(err.response?.data?.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      setApiError("Unable to create your account. Please check your inputs and try again.");
     }
   };
 
   return (
-    <AuthShell
-      title="Create your account"
-      subtitle="Start your academic journey with a guided, professional onboarding experience."
-      footer={
-        <>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 relative overflow-hidden py-12">
+      {/* Background aesthetics */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] pointer-events-none opacity-50"></div>
+
+      <div className="w-full max-w-[480px] relative z-10 animate-slide-up">
+        <div className="flex flex-col items-center mb-6">
+          <Logo />
+          <h1 className="mt-4 text-3xl font-extrabold font-display tracking-tight text-foreground">
+            Create an account
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground text-center">
+            Get started on PathWise. No billing details required.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card/85 backdrop-blur-md p-6 sm:p-7 shadow-soft">
+          {apiError && (
+            <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive flex items-start gap-2">
+              <span>{apiError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  First Name
+                </label>
+                <Controller
+                  name="firstName"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      placeholder="John"
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                        errors.firstName
+                          ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                          : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      }`}
+                    />
+                  )}
+                />
+                {errors.firstName && <p className="mt-2 text-xs text-destructive">{errors.firstName.message}</p>}
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Last Name
+                </label>
+                <Controller
+                  name="lastName"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type="text"
+                      placeholder="Doe"
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                        errors.lastName
+                          ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                          : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      }`}
+                    />
+                  )}
+                />
+                {errors.lastName && <p className="mt-2 text-xs text-destructive">{errors.lastName.message}</p>}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Email Address
+              </label>
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    {...field}
+                    type="email"
+                    placeholder="john.doe@example.com"
+                    className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                      errors.email
+                        ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                        : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    }`}
+                  />
+                )}
+              />
+              {errors.email && <p className="mt-2 text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Phone Number
+              </label>
+              <Controller
+                name="phoneNumber"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    {...field}
+                    type="tel"
+                    placeholder="+91 9876543210"
+                    className={`w-full rounded-xl border px-4 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                      errors.phoneNumber
+                        ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                        : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    }`}
+                  />
+                )}
+              />
+              {errors.phoneNumber && <p className="mt-2 text-xs text-destructive">{errors.phoneNumber.message}</p>}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Password
+              </label>
+              <div className="relative">
+                <Controller
+                  name="password"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 8 characters"
+                      className={`w-full rounded-xl border pl-4 pr-11 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                        errors.password
+                          ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                          : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      }`}
+                    />
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors.password && <p className="mt-2 text-xs text-destructive">{errors.password.message}</p>}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Controller
+                  name="confirmPassword"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      {...field}
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Re-enter password"
+                      className={`w-full rounded-xl border pl-4 pr-11 py-2.5 text-sm bg-background/50 text-foreground outline-none transition-all placeholder:text-muted-foreground ${
+                        errors.confirmPassword
+                          ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                          : "border-input focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      }`}
+                    />
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors.confirmPassword && <p className="mt-2 text-xs text-destructive">{errors.confirmPassword.message}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full mt-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {isSubmitting ? (
+                "Creating Account..."
+              ) : (
+                <>
+                  Create Account
+                  <Sparkles size={16} />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+        
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-sky-700 transition hover:text-sky-800">
-            Sign in
+          <Link href="/login" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+            Sign In
           </Link>
-        </>
-      }
-    >
-      {apiError ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {apiError}
-        </div>
-      ) : null}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">First name</label>
-            <Controller
-              name="firstName"
-              control={control}
-              render={({ field }) => (
-                <input
-                  {...field}
-                  type="text"
-                  className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
-                    errors.firstName ? "border-red-400 focus:ring-red-200" : "border-slate-200 focus:ring-sky-200"
-                  }`}
-                />
-              )}
-            />
-            {errors.firstName ? <p className="mt-1 text-xs text-red-600">{errors.firstName.message}</p> : null}
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Last name</label>
-            <Controller
-              name="lastName"
-              control={control}
-              render={({ field }) => (
-                <input
-                  {...field}
-                  type="text"
-                  className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
-                    errors.lastName ? "border-red-400 focus:ring-red-200" : "border-slate-200 focus:ring-sky-200"
-                  }`}
-                />
-              )}
-            />
-            {errors.lastName ? <p className="mt-1 text-xs text-red-600">{errors.lastName.message}</p> : null}
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Email address</label>
-          <Controller
-            name="email"
-            control={control}
-            render={({ field }) => (
-              <input
-                {...field}
-                type="email"
-                autoComplete="email"
-                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
-                  errors.email ? "border-red-400 focus:ring-red-200" : "border-slate-200 focus:ring-sky-200"
-                }`}
-              />
-            )}
-          />
-          {errors.email ? <p className="mt-1 text-xs text-red-600">{errors.email.message}</p> : null}
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone number</label>
-          <Controller
-            name="phoneNumber"
-            control={control}
-            render={({ field }) => (
-              <input
-                {...field}
-                type="tel"
-                placeholder="+1234567890"
-                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
-                  errors.phoneNumber ? "border-red-400 focus:ring-red-200" : "border-slate-200 focus:ring-sky-200"
-                }`}
-              />
-            )}
-          />
-          {errors.phoneNumber ? <p className="mt-1 text-xs text-red-600">{errors.phoneNumber.message}</p> : null}
-        </div>
-
-        <Controller
-          name="password"
-          control={control}
-          render={({ field }) => (
-            <PasswordInput
-              {...field}
-              label="Password"
-              autoComplete="new-password"
-              error={errors.password?.message}
-            />
-          )}
-        />
-
-        <Controller
-          name="confirmPassword"
-          control={control}
-          render={({ field }) => (
-            <PasswordInput
-              {...field}
-              label="Confirm password"
-              autoComplete="new-password"
-              error={errors.confirmPassword?.message}
-            />
-          )}
-        />
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Current stage</label>
-          <Controller
-            name="stage"
-            control={control}
-            render={({ field }) => (
-              <select
-                {...field}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-200"
-              >
-                <option value="Class 10">Class 10</option>
-                <option value="Class 11">Class 11</option>
-                <option value="Class 12">Class 12</option>
-              </select>
-            )}
-          />
-          {errors.stage ? <p className="mt-1 text-xs text-red-600">{errors.stage.message}</p> : null}
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Creating account...
-            </>
-          ) : (
-            <>
-              Create account
-              <ArrowRight className="h-4 w-4" />
-            </>
-          )}
-        </button>
-      </form>
-    </AuthShell>
+        </p>
+      </div>
+    </div>
   );
 }

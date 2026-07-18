@@ -8,7 +8,6 @@ export async function register(data: {
   phoneNumber: string;
   password: string;
   confirmPassword: string;
-  stage: string;
 }) {
   const res = await api.post<ApiResponse<AuthResponse>>("/auth/register", data);
   return res.data;
@@ -29,7 +28,9 @@ export async function logout() {
   return res.data;
 }
 
-export async function testAiConnection() {
-  const res = await api.get<ApiResponse<{ message: string }>>("/ai/connection-test");
+export async function updateStage(stage: string) {
+  const res = await api.patch<ApiResponse<{ profile: any }>>("/auth/update-stage", { stage });
   return res.data;
 }
+
+

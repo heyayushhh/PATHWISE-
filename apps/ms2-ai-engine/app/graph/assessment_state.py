@@ -14,6 +14,7 @@ class AdaptiveAssessmentState(TypedDict):
     user_id: str
     session_id: str
     assessment_type: str
+    academic_stage: str
     user_profile: dict
 
     answers: list[dict]

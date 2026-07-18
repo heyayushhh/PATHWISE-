@@ -1,6 +1,9 @@
 import os
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 
 _model = None
@@ -16,10 +19,17 @@ def get_gemini_model():
 
     global _model
 
+    if genai is None:
+        return None
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
     if _model is None:
 
         genai.configure(
-            api_key=os.getenv("GEMINI_API_KEY")
+            api_key=api_key
         )
 
         _model = genai.GenerativeModel(
@@ -37,6 +47,8 @@ def call_gemini(prompt: str) -> str:
 
     try:
         model = get_gemini_model()
+        if model is None:
+            return ""
         response = model.generate_content(prompt)
         return response.text or ""
     except Exception as exc:

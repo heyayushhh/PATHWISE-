@@ -25,9 +25,9 @@ export async function registerUser(data: RegisterInput) {
     lastLogin: null,
   });
 
-  await repositories.createProfile({
+  const profile = await repositories.createProfile({
     userId: user.id,
-    currentStage: data.stage,
+    currentStage: data.stage ?? "unspecified",
     assessmentStatus: "not_started",
   });
 
@@ -42,7 +42,7 @@ export async function registerUser(data: RegisterInput) {
 
   await repositories.updateUserLastLogin(user.id);
 
-  return { user, accessToken, refreshToken };
+  return { user, profile, accessToken, refreshToken };
 }
 
 export async function loginUser(data: LoginInput) {
@@ -71,7 +71,12 @@ export async function loginUser(data: LoginInput) {
 
   await repositories.updateUserLastLogin(user.id);
 
-  return { user, accessToken, refreshToken };
+  const profile = await repositories.getProfileByUserId(user.id);
+  if (!profile) {
+    throw new Error("User profile not found");
+  }
+
+  return { user, profile, accessToken, refreshToken };
 }
 
 export async function getCurrentUser(userId: string) {
@@ -81,4 +86,12 @@ export async function getCurrentUser(userId: string) {
   }
   const profile = await repositories.getProfileByUserId(userId);
   return { user, profile };
+}
+
+export async function updateStage(userId: string, stage: string) {
+  const profile = await repositories.updateProfileStage(userId, stage);
+  if (!profile) {
+    throw new Error("Profile not found");
+  }
+  return profile;
 }

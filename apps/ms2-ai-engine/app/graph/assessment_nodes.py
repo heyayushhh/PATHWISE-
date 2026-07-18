@@ -88,6 +88,7 @@ def question_generator_node(state: AdaptiveAssessmentState):
     state["question_history"].append(
         {
             "question": question_data.get("question"),
+            "question_id": question_data.get("id"),
             "category": question_data.get("category"),
             "reason": question_data.get("reason"),
             "answer": None,
@@ -164,6 +165,7 @@ def answer_analysis_node(state: AdaptiveAssessmentState):
     state["answers"].append(
         {
             "question": state["current_question"].get("question"),
+            "question_id": state["current_question"].get("id"),
             "category": state["current_question"].get("category"),
             "answer": pending_answer.get("answer", ""),
         }

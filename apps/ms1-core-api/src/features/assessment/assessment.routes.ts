@@ -15,6 +15,7 @@ from "./assessment.controller";
 
 import {
   startDynamicAssessmentController,
+  getDynamicAssessmentResultController,
   submitDynamicAnswerController,
 } from "./assessment.dynamic.controller";
 
@@ -55,6 +56,11 @@ router.post(
 router.post(
   "/dynamic/:sessionId/answer",
   submitDynamicAnswerController
+);
+
+router.get(
+  "/dynamic/:sessionId/result",
+  getDynamicAssessmentResultController
 );
 
 export default router;

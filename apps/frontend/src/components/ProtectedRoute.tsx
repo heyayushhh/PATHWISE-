@@ -5,19 +5,19 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { state } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!state.isLoading && !state.isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push("/login");
-    } else if (!state.isLoading && state.isAuthenticated && (pathname === "/login" || pathname === "/register" || pathname === "/")) {
+    } else if (!isLoading && isAuthenticated && (pathname === "/login" || pathname === "/register" || pathname === "/")) {
       router.push("/dashboard");
     }
-  }, [state.isLoading, state.isAuthenticated, router, pathname]);
+  }, [isLoading, isAuthenticated, router, pathname]);
 
-  if (state.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p>Loading...</p>
@@ -25,7 +25,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!state.isAuthenticated && pathname !== "/login" && pathname !== "/register" && pathname !== "/") {
+  if (!isAuthenticated && pathname !== "/login" && pathname !== "/register" && pathname !== "/") {
     return null;
   }
 
