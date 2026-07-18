@@ -64,43 +64,4 @@ async def recommend_career(request: dict):
         return response
 
 
-# ---------- Adaptive Assessment Endpoints ----------
-
-
-@router.post("/assessment/start")
-async def start_assessment(
-    request: AdaptiveStartRequest
-):
-    """
-    Start an adaptive assessment.
-    Returns the first 5 broad questions + state.
-    """
-
-    response = await start_adaptive_assessment(
-        user_id=request.userId,
-        assessment_type=request.assessmentType
-    )
-
-    return response
-
-
-@router.post("/assessment/next")
-async def next_questions(
-    request: AdaptiveNextRequest
-):
-    """
-    Process answers and return next questions
-    or final recommendations.
-    """
-
-    answers = [
-        a.model_dump() for a in request.answers
-    ]
-
-    response = await process_adaptive_next(
-        user_id=request.userId,
-        answers=answers,
-        client_state=request.state
-    )
-
-    return response
+# ---------- Adaptive Assessment Endpoints (Moved to assessment_routes.py) ----------

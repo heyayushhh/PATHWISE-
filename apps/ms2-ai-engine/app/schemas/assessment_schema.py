@@ -9,6 +9,7 @@ class AssessmentStartRequest(BaseModel):
     user_id: str = Field(..., min_length=1, description="User identifier from MS1")
     session_id: Optional[str] = Field(default=None, description="Session identifier created by MS1")
     assessment_type: str = Field(default="adaptive", description="Assessment type")
+    academic_stage: Optional[str] = Field(default=None, description="Class 10 or Class 12")
 
 
 class AssessmentAnswerRequest(BaseModel):
@@ -22,10 +23,13 @@ class AssessmentStartResponse(BaseModel):
 
     session_id: str
     question: Optional[str] = None
+    options: Optional[list[str]] = None
     category: Optional[str] = None
     status: str = "continue"
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
+    question_number: Optional[int] = None
+    total_questions: Optional[int] = None
 
 
 class AssessmentTurnResponse(BaseModel):
@@ -34,11 +38,14 @@ class AssessmentTurnResponse(BaseModel):
     status: str
     session_id: str
     question: Optional[str] = None
+    options: Optional[list[str]] = None
     category: Optional[str] = None
     recommendations: Optional[list[dict[str, Any]]] = None
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
     explanation: Optional[str] = None
+    question_number: Optional[int] = None
+    total_questions: Optional[int] = None
 
 
 class AssessmentStatusResponse(BaseModel):
@@ -50,3 +57,15 @@ class AssessmentStatusResponse(BaseModel):
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
     is_complete: bool = False
+
+
+class AssessmentResultResponse(BaseModel):
+    """Response returned for a completed assessment result."""
+
+    session_id: str
+    status: str
+    recommendations: list[dict[str, Any]] = []
+    confidence_score: Optional[float] = None
+    progress: Optional[int] = None
+    explanation: Optional[str] = None
+    answers: list[dict[str, Any]] = []

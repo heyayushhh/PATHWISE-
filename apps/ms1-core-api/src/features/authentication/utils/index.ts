@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import { config } from "../../../config";
 import type { JwtPayload, ApiResponse } from "../types";
 
@@ -20,15 +20,15 @@ export function createApiResponse<T = null>(
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload as object, jwtSecret as any, {
-    expiresIn: config.jwt.accessExpiresIn as any,
-  } as any);
+  return jwt.sign(payload, jwtSecret, {
+    expiresIn: config.jwt.accessExpiresIn as SignOptions["expiresIn"],
+  });
 }
 
 export function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload as object, jwtSecret as any, {
-    expiresIn: config.jwt.refreshExpiresIn as any,
-  } as any);
+  return jwt.sign(payload, jwtSecret, {
+    expiresIn: config.jwt.refreshExpiresIn as SignOptions["expiresIn"],
+  });
 }
 
 export function verifyToken(token: string): JwtPayload {

@@ -41,7 +41,13 @@ def analyze_answer(question: dict[str, Any], answer: str, state: dict[str, Any])
     existing_strengths = state.get("inferred_strengths") or []
     existing_traits = state.get("inferred_traits") or []
 
+    # Map MCQ answer to interest
     normalized_interests = _normalize_interest_terms(keywords)
+    
+    # Add the full answer as an interest if it's an MCQ option
+    if answer:
+        normalized_interests.append(answer.lower())
+
     interests = list(dict.fromkeys([*(existing_interests), *normalized_interests]))
 
     strengths = list(

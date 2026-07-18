@@ -18,6 +18,13 @@ export async function startAssessmentController(
 
   try {
 
+    if (!req.user) {
+      return res.status(401)
+        .json({
+          message: "Not authenticated"
+        });
+    }
+
 
     const userId =
       req.user?.userId;
@@ -143,6 +150,18 @@ export async function submitAnswerController(
 
   try {
 
+    const sessionId =
+      Array.isArray(req.params.sessionId)
+        ? req.params.sessionId[0]
+        : req.params.sessionId;
+
+    if (!sessionId) {
+      return res.status(400)
+        .json({
+          message: "Session ID is required"
+        });
+    }
+
 
     const {
       questionId,
@@ -154,10 +173,7 @@ export async function submitAnswerController(
 
     const response =
       await saveAssessmentAnswer(
-
-        Array.isArray(req.params.sessionId)
-          ? req.params.sessionId[0]
-          : req.params.sessionId,
+        sessionId,
 
         questionId,
 
@@ -207,17 +223,23 @@ export async function completeStaticAssessmentController(
 
   try {
 
-
     const sessionId =
-      req.params.id;
+      Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+
+    if (!sessionId) {
+      return res.status(400)
+        .json({
+          message: "Session ID is required"
+        });
+    }
 
 
 
     const result =
       await completeStaticAssessment(
-        Array.isArray(req.params.id)
-          ? req.params.id[0]
-          : req.params.id
+        sessionId
       );
 
 

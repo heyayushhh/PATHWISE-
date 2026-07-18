@@ -1,0 +1,67 @@
+# PATHWISE PROJECT BLUEPRINT & STATUS (AS OF JULY 16, 2026)
+
+## 1. WHAT WE HAVE DONE SO FAR
+- **Architecture & Infrastructure Alignment**:
+  - Removed stale Vector DB (Qdrant) references.
+  - Finalized stack: PostgreSQL (Drizzle), Neo4j, Redis.
+  - Updated `turbo.json` to 2.x syntax ("tasks" vs "pipeline").
+- **MS1 - Core API (Business Logic & Orchestration)**:
+  - Robust JWT Authentication (Register/Login/Logout/Me) with profile creation.
+  - Internal communication bridge to MS2 AI Engine via HTTP.
+  - Assessment flow backend: Static assessment schema, seed data, and controllers.
+  - Improved error handling: Server now explicitly reports "Database unavailable" instead of generic 400s.
+  - Fixed all TypeScript build blockers.
+- **MS2 - AI Engine (Python/FastAPI)**:
+  - Career recommendation graph scaffolding (LangGraph).
+  - Fixed runtime crash: Engine now boots safely even without a GEMINI_API_KEY.
+  - Python venv setup and dependency alignment.
+- **Frontend (Next.js 14 App Router)**:
+  - Added a professional App Shell with Sidebar navigation.
+  - Redesigned Auth pages (Login/Register) with stable form state (Zod/React Hook Form).
+  - Created meaningful dashboard routes:
+    - /dashboard (Overview)
+    - /dashboard/assessment (Skills/Interest assessment)
+    - /dashboard/roadmap (Career path visualization)
+    - /dashboard/career-lab (AI-powered recommendations)
+    - /dashboard/profile (User settings)
+  - Fixed hydration and chunk loading errors by clearing stale `.next` caches.
+
+## 2. HOW TO RUN THE PROJECT
+To see the full end-to-end flow, follow these steps in order:
+
+### Step 1: Start Infrastructure (REQUIRED)
+PostgreSQL must be running for Auth to work.
+```powershell
+docker-compose up -d
+```
+
+### Step 2: Start MS2 AI Engine
+```powershell
+cd apps/ms2-ai-engine
+.\venv\Scripts\activate
+uvicorn app.main:app --host 127.0.0.1 --port 3002 --reload
+```
+
+### Step 3: Start MS1 Core API
+```powershell
+pnpm --filter ms1-core-api dev
+```
+
+### Step 4: Start Frontend
+```powershell
+pnpm --filter frontend dev
+```
+Open: http://localhost:3000
+
+## 3. PROJECT OVERVIEW
+- **Gateway Pattern**: Frontend -> MS1 (Port 3001) -> MS2 (Port 3002).
+- **Authentication**: JWT Access + Refresh tokens. MS1 handles the DB, MS2 handles the AI logic.
+- **Database**: PostgreSQL stores Users/Profiles/Assessments via Drizzle ORM.
+- **Current Blockers**:
+  - Real registration/login requires PostgreSQL (Docker) to be running.
+  - AI Recommendations in Career Lab require a `GEMINI_API_KEY` in the `.env`.
+
+## 4. WHAT'S NEXT
+- Wire the /assessment page to save real answers to the database.
+- Integrate the Gemini API for live career recommendations in MS2.
+- Polish the UI/UX based on the professional design references provided.

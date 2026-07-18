@@ -64,62 +64,6 @@ app.get(
 
 
 
-app.get(
-  "/api/ai/connection-test",
-  async (req, res) => {
-
-    try {
-
-      const response =
-        await fetch(
-          `${config.aiEngineUrl}/connection-test`
-        );
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          `AI engine returned ${response.status}`
-        );
-
-      }
-
-
-      const data =
-        await response.json();
-
-
-      res.json(
-        createApiResponse(
-          true,
-          "Frontend -> Express -> FastAPI connection successful",
-          data
-        )
-      );
-
-
-    } catch (error) {
-
-      logger.error(error);
-
-
-      res.status(500)
-      .json(
-        createApiResponse(
-          false,
-          "Unable to reach AI Engine"
-        )
-      );
-
-    }
-
-  }
-);
-
-
-
-
-
 // Global error handler
 
 app.use(
