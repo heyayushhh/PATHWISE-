@@ -226,7 +226,15 @@ export async function completeStaticAssessment(
     answers
   );
 
-  const recommendations = await getCareerRecommendations(payload);
+  let recommendations;
+  try {
+    recommendations = await getCareerRecommendations(payload);
+  } catch (error) {
+    recommendations = {
+      careers: [],
+      explanation: "Recommendation generation is temporarily unavailable. The assessment was still completed successfully.",
+    };
+  }
 
   return {
     session: updatedSession[0],

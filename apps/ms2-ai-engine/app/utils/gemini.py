@@ -23,7 +23,7 @@ def get_gemini_model():
         )
 
         _model = genai.GenerativeModel(
-            "models/gemini-2.5-flash"
+            "models/gemini-flash-latest"
         )
 
     return _model

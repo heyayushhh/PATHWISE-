@@ -6,11 +6,14 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { login as loginUser } from "@/services/auth";
 import { useAuth } from "@/providers/AuthProvider";
+import { AuthShell } from "@/components/AuthShell";
+import { PasswordInput } from "@/components/PasswordInput";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email"),
+  email: z.string().trim().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -23,6 +26,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
   });
 
   const { login } = useAuth();
@@ -30,80 +34,89 @@ export default function LoginPage() {
   const [apiError, setApiError] = useState<string | null>(null);
 
   const onSubmit = async (data: LoginFormData) => {
+    setApiError(null);
     try {
       const res = await loginUser(data);
       if (res.success && res.data) {
-        login(res.data.user, res.data.accessToken, res.data.refreshToken);
+        await login(res.data.user, res.data.accessToken, res.data.refreshToken);
         router.push("/dashboard");
       } else {
-        setApiError(res.message);
+        setApiError(res.message || "Unable to sign in right now.");
       }
     } catch (err: any) {
-      setApiError(err.response?.data?.message || "Something went wrong");
+      setApiError(err.response?.data?.message || "Something went wrong. Please try again.");
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Login</h1>
-        {apiError && (
-          <div className="bg-red-50 text-red-700 p-3 rounded mb-4">
-            {apiError}
-          </div>
-        )}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <Controller
-              name="email"
-              control={control}
-              render={({ field }) => (
-                <input
-                  {...field}
-                  type="email"
-                  className={`w-full px-3 py-2 border rounded-md ${
-                    errors.email ? "border-red-500" : "border-gray-300"
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              )}
-            />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <Controller
-              name="password"
-              control={control}
-              render={({ field }) => (
-                <input
-                  {...field}
-                  type="password"
-                  className={`w-full px-3 py-2 border rounded-md ${
-                    errors.password ? "border-red-500" : "border-gray-300"
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              )}
-            />
-            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {isSubmitting ? "Logging in..." : "Login"}
-          </button>
-        </form>
-        <p className="text-center text-sm text-gray-600 mt-4">
-          Don't have an account?{" "}
-          <Link href="/register" className="text-blue-600 hover:underline">
-            Register
+    <AuthShell
+      title="Welcome back"
+      subtitle="Continue your career evaluation with a polished, secure sign-in experience."
+      footer={
+        <>
+          New here?{" "}
+          <Link href="/register" className="font-medium text-sky-700 transition hover:text-sky-800">
+            Create an account
           </Link>
-        </p>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {apiError ? (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {apiError}
+        </div>
+      ) : null}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Email address</label>
+          <Controller
+            name="email"
+            control={control}
+            render={({ field }) => (
+              <input
+                {...field}
+                type="email"
+                autoComplete="email"
+                className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:ring-2 ${
+                  errors.email ? "border-red-400 focus:ring-red-200" : "border-slate-200 focus:ring-sky-200"
+                }`}
+              />
+            )}
+          />
+          {errors.email ? <p className="mt-1 text-xs text-red-600">{errors.email.message}</p> : null}
+        </div>
+
+        <Controller
+          name="password"
+          control={control}
+          render={({ field }) => (
+            <PasswordInput
+              {...field}
+              label="Password"
+              autoComplete="current-password"
+              error={errors.password?.message}
+            />
+          )}
+        />
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
