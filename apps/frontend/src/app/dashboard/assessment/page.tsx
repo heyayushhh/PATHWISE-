@@ -382,15 +382,7 @@ export default function AssessmentPage() {
             </div>
 
             {/* Footer Controls */}
-            <div className="flex items-center justify-between pt-6 mt-6 border-t border-border">
-              <button 
-                className="text-muted-foreground hover:text-foreground font-semibold flex items-center gap-2 transition-colors text-sm"
-                onClick={() => router.push("/dashboard")}
-              >
-                <ArrowLeft size={16} />
-                Previous
-              </button>
-              
+            <div className="flex items-center justify-end pt-6 mt-6 border-t border-border">
               <button
                 onClick={handleSubmitAnswer}
                 disabled={!selectedAnswer || isSubmitting || hasNoOptions}
@@ -401,7 +393,10 @@ export default function AssessmentPage() {
                 }`}
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
                 ) : (
                   <>
                     Next Step

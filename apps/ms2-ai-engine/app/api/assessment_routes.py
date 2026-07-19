@@ -19,6 +19,7 @@ from app.schemas.assessment_schema import (
     AssessmentStatusResponse,
     AssessmentTurnResponse,
     RestoreSessionRequest,
+    ScoreRequest,
 )
 from app.schemas.career import AssessmentAnswer, AssessmentPayload
 from app.services.career_service import generate_assessment_recommendation
@@ -29,25 +30,6 @@ from app.services.question_generator import (
     validate_assessment_completion,
 )
 from app.services.recommendation_engine import generate_recommendations
-
-async def generate_recommendations_background(session_id: str, state: dict):
-    """Background task to generate recommendations."""
-    print(f"[Background] Generating recommendations for session {session_id}...")
-    try:
-        careers = generate_recommendations(state)
-        
-        if not careers:
-            raise ValueError("No career recommendations generated")
-            
-        state["recommendations"] = careers
-        state["explanation"] = "Based on your assessment, we've personalized these recommendations for you."
-        state["recommendation_status"] = "READY"
-        save_state(session_id, state)
-        print(f"[Background] Recommendations READY for session {session_id}")
-    except Exception as e:
-        print(f"[Background] Error generating recommendations: {str(e)}")
-        state["recommendation_status"] = "FAILED"
-        save_state(session_id, state)
 
 router = APIRouter(prefix="/assessment", tags=["Assessment"])
 
@@ -168,6 +150,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
                 confidence_score=state.get("confidence_score"),
                 progress=100,
                 explanation=state.get("explanation"),
+                profile=state,
             )
         
         cur_q = state.get("current_question") or {}
@@ -216,9 +199,6 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
         recommendation_node(state)
         save_state(session_id, state)
 
-        # Decouple the background generation
-        background_tasks.add_task(generate_recommendations_background, session_id, state)
-
         return AssessmentTurnResponse(
             status="completed",
             session_id=session_id,
@@ -226,6 +206,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
             confidence_score=state.get("confidence_score"),
             progress=100,
             explanation=state.get("explanation"),
+            profile=state,
         )
 
     # 4. Generate Next Question
@@ -247,9 +228,6 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
         recommendation_node(state)
         save_state(session_id, state)
 
-        # Decouple the background generation
-        background_tasks.add_task(generate_recommendations_background, session_id, state)
-
         return AssessmentTurnResponse(
             status="completed",
             session_id=session_id,
@@ -257,6 +235,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
             confidence_score=state.get("confidence_score"),
             progress=100,
             explanation=state.get("explanation"),
+            profile=state,
         )
 
     question_selector_node(state)
@@ -348,3 +327,15 @@ async def get_result(session_id: str) -> AssessmentResultResponse:
         explanation=state.get("explanation"),
         answers=state.get("answers", []),
     )
+
+from app.services.scoring_engine import score_candidates_stateless
+
+@router.post("/score")
+async def score_candidates_route(request: ScoreRequest):
+    """Stateless scoring endpoint for MS1 orchestration."""
+    try:
+        scored = score_candidates_stateless(request.profile, request.candidates)
+        return {"recommendations": scored}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

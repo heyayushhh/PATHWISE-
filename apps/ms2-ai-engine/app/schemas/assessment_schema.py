@@ -26,6 +26,10 @@ class RestoreSessionRequest(BaseModel):
     state: dict[str, Any]
 
 
+class ScoreRequest(BaseModel):
+    profile: dict
+    candidates: list[dict]
+
 class AssessmentStartResponse(BaseModel):
     """Response returned when starting an assessment."""
 
@@ -54,6 +58,7 @@ class AssessmentTurnResponse(BaseModel):
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
     explanation: Optional[str] = None
+    profile: Optional[dict[str, Any]] = None
     question_number: Optional[int] = None
     total_questions: Optional[int] = None
 

@@ -8,16 +8,15 @@ import Card from "@/components/ui/Card";
 import { getDynamicAssessmentResult } from "@/services/assessment";
 import { 
   readAssessmentSnapshot, 
-  readLastAssessmentResultId,
-  readSelectedCareer,
-  writeSelectedCareer
+  readLastAssessmentResultId
 } from "@/utils";
 import type { CareerRecommendation, DynamicAssessmentResultResponse } from "@/types";
 import { ArrowRight, Award, Briefcase, ChevronRight, GraduationCap, Lightbulb, RefreshCw, Star, Target, Trophy } from "lucide-react";
 
 function normalizeCareer(recommendation: CareerRecommendation) {
-  if ("title" in recommendation) {
+  if ("matchScore" in recommendation) {
     return {
+      id: (recommendation as any).id || "legacy",
       title: recommendation.title,
       score: recommendation.matchScore ? `${Math.round(recommendation.matchScore)}% Match` : null,
       reason: recommendation.whyRecommended,
@@ -26,18 +25,23 @@ function normalizeCareer(recommendation: CareerRecommendation) {
       nextSteps: "",
       salary: recommendation.salaryRange || null,
       demand: recommendation.futureDemand || null,
+      isTarget: false,
+      type: "legacy",
     };
   }
 
   return {
-    title: recommendation.career_name,
+    id: recommendation.id,
+    title: recommendation.title || recommendation.career_name,
     score: recommendation.match_score ? `${recommendation.match_score}% Match` : (recommendation.confidence ? `${Math.round(recommendation.confidence * 100)}% Match` : null),
-    reason: recommendation.why_suitable,
+    reason: recommendation.personalized_reason || recommendation.why_suitable,
     skills: recommendation.required_skills || [],
     strengths: recommendation.strengths || [],
     nextSteps: recommendation.next_steps || "",
     salary: null,
     demand: null,
+    isTarget: recommendation.is_target || false,
+    type: recommendation.recommendation_type || recommendation.type,
   };
 }
 
@@ -52,8 +56,6 @@ export default function ResultsPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelectedCareer(readSelectedCareer());
-    
     const snapshot = readAssessmentSnapshot();
     if (snapshot) {
       if (snapshot.status === "continue") {
@@ -67,10 +69,35 @@ export default function ResultsPage() {
     }
   }, []);
 
-  const handleToggleSelectCareer = (careerName: string) => {
-    const newValue = selectedCareer === careerName ? null : careerName;
-    setSelectedCareer(newValue);
-    writeSelectedCareer(newValue);
+  const handleToggleSelectCareer = async (recommendationId: string, careerName: string) => {
+    if (!resolvedSessionId) return;
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:3001/api"}/assessment/dynamic/${resolvedSessionId}/target`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ recommendationId })
+      });
+      if (res.ok) {
+        setSelectedCareer(careerName);
+        // Optimistically update result state
+        setResult(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            recommendations: prev.recommendations.map((r: any) => ({
+              ...r,
+              is_target: r.id === recommendationId
+            }))
+          };
+        });
+      }
+    } catch (e) {
+      console.error("Failed to select target", e);
+    }
   };
 
   useEffect(() => {
@@ -109,8 +136,18 @@ export default function ResultsPage() {
         setError("");
         const payload = await getDynamicAssessmentResult(resolvedSessionId);
         setResult(payload);
-      } catch {
-        setError("Unable to load the assessment result right now. Complete the assessment first.");
+        
+        // Find existing selected target
+        const target = payload.recommendations?.find((r: any) => r.is_target);
+        if (target) {
+          setSelectedCareer(target.title || (target as any).career_name);
+        }
+      } catch (err: any) {
+        if (err.response?.status === 409 || err.response?.data?.code === "LEGACY_RECOMMENDATION_SET_DETECTED") {
+          setError(err.response?.data?.message || "Your previous assessment results are outdated. Please retake the assessment.");
+        } else {
+          setError("Unable to load the assessment result right now. Complete the assessment first.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -136,14 +173,24 @@ export default function ResultsPage() {
         <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
           <Target size={32} />
         </div>
-        <h2 className="text-3xl font-extrabold font-display text-foreground">Assessment Required</h2>
+        <h2 className="text-3xl font-extrabold font-display text-foreground">
+          {error.includes("outdated") || error.includes("retake") ? "Retake Assessment Required" : "Assessment Required"}
+        </h2>
         <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
-          {assessmentState === "in_progress" 
-            ? "Your assessment is currently in progress. Resume it to unlock your career recommendations."
-            : "You haven't completed the career assessment yet. Complete it to unlock your personalized AI recommendations."}
+          {error.includes("outdated") || error.includes("retake") 
+            ? error
+            : (assessmentState === "in_progress" 
+              ? "Your assessment is currently in progress. Resume it to unlock your career recommendations."
+              : "You haven't completed the career assessment yet. Complete it to unlock your personalized AI recommendations.")}
         </p>
         <div className="pt-2">
-          {assessmentState === "in_progress" ? (
+          {error.includes("outdated") || error.includes("retake") ? (
+            <Link href="/dashboard/assessment">
+              <Button size="lg" className="rounded-xl font-bold shadow-lg">
+                Retake Assessment <RefreshCw className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          ) : assessmentState === "in_progress" ? (
             <Link href={`/dashboard/assessment?sessionId=${activeSessionId}`}>
               <Button size="lg" className="rounded-xl font-bold shadow-lg">
                 Continue Assessment <ArrowRight className="ml-2 h-4 w-4" />
@@ -168,9 +215,11 @@ export default function ResultsPage() {
         <span className="inline-block rounded-full bg-secondary px-4 py-1.5 text-xs font-bold text-secondary-foreground uppercase tracking-wider mb-4">
           Assessment Complete
         </span>
-        <h1 className="text-4xl font-extrabold font-display text-foreground mb-3">Your Career Matches</h1>
+        <h1 className="text-4xl font-extrabold font-display text-foreground mb-3">
+          {result?.recommendationType === "academic_direction" ? "Your Academic Path Matches" : "Your Course & Career Matches"}
+        </h1>
         <p className="text-muted-foreground text-lg">
-          {normalizedCareers.length} careers matched based on your assessment · {result?.academic_stage || "Class 10"}
+          {result?.recommendationType === "academic_direction" ? "Based on your interests, strengths, and preferences" : "Based on your stream, interests, strengths, and preferences"}
         </p>
       </div>
 
@@ -243,10 +292,10 @@ export default function ResultsPage() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => handleToggleSelectCareer(career.title)}
-                    className={selectedCareer === career.title ? "text-primary" : "text-muted-foreground hover:text-primary"}
+                    onClick={() => handleToggleSelectCareer(career.id || "legacy", career.title || (career as any).career_name || "Unknown Match")}
+                    className={career.isTarget ? "text-primary" : "text-muted-foreground hover:text-primary"}
                   >
-                    <Star size={20} fill={selectedCareer === career.title ? "currentColor" : "none"} />
+                    <Star size={20} fill={career.isTarget ? "currentColor" : "none"} />
                   </Button>
                 </div>
               </div>
@@ -262,9 +311,13 @@ export default function ResultsPage() {
             ← Back to Dashboard
           </Button>
         </Link>
-        <Link href="/dashboard/roadmap">
-          <Button size="lg" className="rounded-xl px-10 font-bold shadow-lg">
-            View My Roadmap
+        <Link href={selectedCareer ? "/dashboard/roadmap" : "#"}>
+          <Button 
+            size="lg" 
+            className="rounded-xl px-10 font-bold shadow-lg"
+            disabled={!selectedCareer}
+          >
+            {selectedCareer ? "View My Roadmap" : "Select a Path to Continue"}
           </Button>
         </Link>
       </div>

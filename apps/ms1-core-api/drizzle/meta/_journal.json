@@ -8,6 +8,20 @@
       "when": 1784009830993,
       "tag": "0000_tranquil_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784452201992,
+      "tag": "0001_huge_white_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784460486020,
+      "tag": "0002_warm_war_machine",
+      "breakpoints": true
     }
   ]
 }

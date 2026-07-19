@@ -1,0 +1,1 @@
+ALTER TABLE "user_recommendations" ADD COLUMN "is_target" boolean DEFAULT false;

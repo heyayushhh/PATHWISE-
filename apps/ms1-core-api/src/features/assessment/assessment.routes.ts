@@ -18,6 +18,7 @@ import {
   getDynamicAssessmentResultController,
   submitDynamicAnswerController,
   getDynamicAssessmentStatusController,
+  setTargetRecommendationController,
 } from "./assessment.dynamic.controller";
 
 const router =
@@ -69,6 +70,11 @@ router.post(
 router.get(
   "/dynamic/:sessionId/result",
   getDynamicAssessmentResultController
+);
+
+router.post(
+  "/dynamic/:sessionId/target",
+  setTargetRecommendationController
 );
 
 export default router;
