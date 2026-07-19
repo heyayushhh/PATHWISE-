@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from app.graph.assessment_state import AdaptiveAssessmentState
 from app.graph.assessment_nodes import (
@@ -18,12 +18,36 @@ from app.schemas.assessment_schema import (
     AssessmentStartResponse,
     AssessmentStatusResponse,
     AssessmentTurnResponse,
+    RestoreSessionRequest,
 )
 from app.schemas.career import AssessmentAnswer, AssessmentPayload
 from app.services.career_service import generate_assessment_recommendation
 from app.services.assessment_persistence import load_state, save_state
-from app.services.question_generator import generate_next_question, get_total_questions
+from app.services.question_generator import (
+    generate_next_question,
+    get_total_questions,
+    validate_assessment_completion,
+)
 from app.services.recommendation_engine import generate_recommendations
+
+async def generate_recommendations_background(session_id: str, state: dict):
+    """Background task to generate recommendations."""
+    print(f"[Background] Generating recommendations for session {session_id}...")
+    try:
+        careers = generate_recommendations(state)
+        
+        if not careers:
+            raise ValueError("No career recommendations generated")
+            
+        state["recommendations"] = careers
+        state["explanation"] = "Based on your assessment, we've personalized these recommendations for you."
+        state["recommendation_status"] = "READY"
+        save_state(session_id, state)
+        print(f"[Background] Recommendations READY for session {session_id}")
+    except Exception as e:
+        print(f"[Background] Error generating recommendations: {str(e)}")
+        state["recommendation_status"] = "FAILED"
+        save_state(session_id, state)
 
 router = APIRouter(prefix="/assessment", tags=["Assessment"])
 
@@ -53,6 +77,7 @@ def _build_state_payload(user_id: str, assessment_type: str, session_id: str, ac
         "is_complete": False,
         "recommendations": [],
         "explanation": "",
+        "recommendation_status": "NOT_STARTED",
     }
 
 
@@ -82,6 +107,7 @@ async def start_assessment(request: AssessmentStartRequest) -> AssessmentStartRe
     question_generator_node(state)
     question_selector_node(state)
 
+    state["recommendation_status"] = "NOT_STARTED"
     save_state(session_id, state)
 
     question = state.get("current_question") or {}
@@ -92,8 +118,10 @@ async def start_assessment(request: AssessmentStartRequest) -> AssessmentStartRe
     return AssessmentStartResponse(
         session_id=session_id,
         question=question.get("question"),
+        question_id=question.get("id") or question.get("question_id"),
         options=question.get("options"),
         category=question.get("category"),
+        status="continue",
         confidence_score=state.get("confidence_score"),
         progress=progress_val,
         question_number=q_num,
@@ -101,76 +129,134 @@ async def start_assessment(request: AssessmentStartRequest) -> AssessmentStartRe
     )
 
 
+@router.post("/restore")
+async def restore_session_state(request: RestoreSessionRequest):
+    """Restore state from database if disk cache is missing in MS2."""
+    session_id = request.session_id
+    state = request.state
+    
+    if not session_id or not isinstance(state, dict):
+        raise HTTPException(status_code=400, detail="Invalid restore payload")
+        
+    save_state(session_id, state)
+    print(f"Session '{session_id}' state restored successfully.")
+    return {"status": "restored"}
+
+
 @router.post("/{session_id}/answer", response_model=AssessmentTurnResponse)
-async def submit_answer(session_id: str, request: AssessmentAnswerRequest) -> AssessmentTurnResponse:
+async def submit_answer(session_id: str, request: AssessmentAnswerRequest, background_tasks: BackgroundTasks) -> AssessmentTurnResponse:
     state = load_state(session_id)
     if not state:
         raise HTTPException(status_code=404, detail="Assessment session not found")
 
-    if not request.answer.strip():
+    q_id = request.question_id
+    ans_text = request.answer.strip()
+    if not ans_text:
         raise HTTPException(status_code=400, detail="Answer cannot be empty")
 
-    state["pending_answer"] = {"answer": request.answer}
+    # 1. Idempotency Check: If already answered, do not advance
+    answered_ids = [ans.get("question_id") for ans in state.get("answers", [])]
+    if q_id in answered_ids:
+        print(f"Idempotency hit: Question '{q_id}' already answered.")
+        is_complete = state.get("is_complete", False)
+        
+        if is_complete:
+            return AssessmentTurnResponse(
+                status="completed",
+                session_id=session_id,
+                recommendations=state.get("recommendations", []),
+                confidence_score=state.get("confidence_score"),
+                progress=100,
+                explanation=state.get("explanation"),
+            )
+        
+        cur_q = state.get("current_question") or {}
+        total_qs = get_total_questions(state)
+        q_num = state.get("iteration_count", 0)
+        progress_val = int(((q_num - 1) / total_qs) * 100)
+        
+        return AssessmentTurnResponse(
+            status="continue",
+            session_id=session_id,
+            question=cur_q.get("question"),
+            question_id=cur_q.get("id"),
+            options=cur_q.get("options"),
+            category=cur_q.get("category"),
+            confidence_score=state.get("confidence_score"),
+            progress=progress_val,
+            question_number=q_num,
+            total_questions=total_qs,
+        )
+
+    # 2. Check Question ID Mismatch
+    current_q = state.get("current_question") or {}
+    if current_q.get("id") != q_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Question ID mismatch. Expected '{current_q.get('id')}', got '{q_id}'"
+        )
+
+    # 3. Process Answer
+    state["pending_answer"] = {"answer": ans_text}
     answer_analysis_node(state)
     decision_node(state)
 
     if state.get("is_complete", False):
-        recommendation_node(state)
-
+        state["recommendation_status"] = "GENERATING"
+        save_state(session_id, state)
+        
         try:
-            recommendation_payload = _build_dynamic_answer_payload(state)
-            ai_recommendation = await generate_assessment_recommendation(recommendation_payload)
-            careers = ai_recommendation.get("careers") or []
-            explanation = ai_recommendation.get("explanation") or ""
-            
-            if not careers:
-                raise ValueError("No career recommendations generated by AI engine")
-                
-            state["recommendations"] = careers
-            state["explanation"] = explanation
+            validate_assessment_completion(state)
+        except ValueError as e:
+            state["is_complete"] = False
+            state["recommendation_status"] = "FAILED"
             save_state(session_id, state)
-        except Exception as e:
-            print(f"Error generating recommendations: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Assessment validation failed: {str(e)}")
+
+        recommendation_node(state)
+        save_state(session_id, state)
+
+        # Decouple the background generation
+        background_tasks.add_task(generate_recommendations_background, session_id, state)
 
         return AssessmentTurnResponse(
             status="completed",
             session_id=session_id,
-            recommendations=careers,
+            recommendations=[],
             confidence_score=state.get("confidence_score"),
             progress=100,
-            explanation=explanation,
+            explanation=state.get("explanation"),
         )
 
+    # 4. Generate Next Question
     question_generator_node(state)
     
     # Check if generator marked assessment complete (dangling branches/sequential end)
     if state.get("is_complete", False):
-        recommendation_node(state)
-
+        state["recommendation_status"] = "GENERATING"
+        save_state(session_id, state)
+        
         try:
-            recommendation_payload = _build_dynamic_answer_payload(state)
-            ai_recommendation = await generate_assessment_recommendation(recommendation_payload)
-            careers = ai_recommendation.get("careers") or []
-            explanation = ai_recommendation.get("explanation") or ""
-            
-            if not careers:
-                raise ValueError("No career recommendations generated by AI engine")
-                
-            state["recommendations"] = careers
-            state["explanation"] = explanation
+            validate_assessment_completion(state)
+        except ValueError as e:
+            state["is_complete"] = False
+            state["recommendation_status"] = "FAILED"
             save_state(session_id, state)
-        except Exception as e:
-            print(f"Error generating recommendations: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Assessment validation failed: {str(e)}")
+
+        recommendation_node(state)
+        save_state(session_id, state)
+
+        # Decouple the background generation
+        background_tasks.add_task(generate_recommendations_background, session_id, state)
 
         return AssessmentTurnResponse(
             status="completed",
             session_id=session_id,
-            recommendations=careers,
+            recommendations=[],
             confidence_score=state.get("confidence_score"),
             progress=100,
-            explanation=explanation,
+            explanation=state.get("explanation"),
         )
 
     question_selector_node(state)
@@ -185,6 +271,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest) -> As
         status="continue",
         session_id=session_id,
         question=question.get("question"),
+        question_id=question.get("id"),
         options=question.get("options"),
         category=question.get("category"),
         confidence_score=state.get("confidence_score"),
@@ -194,21 +281,31 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest) -> As
     )
 
 
-@router.get("/{session_id}", response_model=AssessmentStatusResponse)
-async def get_status(session_id: str) -> AssessmentStatusResponse:
+@router.get("/{session_id}")
+async def get_status(session_id: str):
     state = load_state(session_id)
     if not state:
         raise HTTPException(status_code=404, detail="Assessment session not found")
 
     question = state.get("current_question") or {}
-    return AssessmentStatusResponse(
-        session_id=session_id,
-        status="completed" if state.get("is_complete") else "continue",
-        current_question=question.get("question"),
-        confidence_score=state.get("confidence_score"),
-        progress=min(100, int(state.get("iteration_count", 0) * 10)),
-        is_complete=bool(state.get("is_complete", False)),
-    )
+    total_qs = get_total_questions(state)
+    q_num = state.get("iteration_count", 0)
+    progress_val = 100 if state.get("is_complete") else int(((q_num - 1) / total_qs) * 100)
+    
+    return {
+        "session_id": session_id,
+        "status": "completed" if state.get("is_complete") else "continue",
+        "question": question.get("question"),
+        "question_id": question.get("id"),
+        "options": question.get("options"),
+        "category": question.get("category"),
+        "confidence_score": state.get("confidence_score"),
+        "progress": progress_val,
+        "question_number": q_num,
+        "total_questions": total_qs,
+        "is_complete": bool(state.get("is_complete", False)),
+        "recommendation_status": state.get("recommendation_status", "NOT_STARTED")
+    }
 
 
 @router.get("/{session_id}/result", response_model=AssessmentResultResponse)
@@ -220,12 +317,34 @@ async def get_result(session_id: str) -> AssessmentResultResponse:
     if not state.get("is_complete", False):
         raise HTTPException(status_code=409, detail="Assessment result is not available yet")
 
+    # If recommendation failed or is missing, try self-healing regeneration
+    if state.get("recommendation_status") != "READY" or not state.get("recommendations"):
+        state["recommendation_status"] = "GENERATING"
+        save_state(session_id, state)
+        
+        try:
+            validate_assessment_completion(state)
+            careers = generate_recommendations(state)
+            explanation = "Based on your assessment, we've personalized these recommendations for you."
+            
+            if not careers:
+                raise ValueError("No career recommendations generated by AI")
+                
+            state["recommendations"] = careers
+            state["explanation"] = explanation
+            state["recommendation_status"] = "READY"
+            save_state(session_id, state)
+        except Exception as e:
+            print(f"[Results Page Retry] Recommendation generation failed: {e}")
+            state["recommendation_status"] = "FAILED"
+            save_state(session_id, state)
+
     return AssessmentResultResponse(
         session_id=session_id,
         status="completed",
         recommendations=state.get("recommendations", []),
         confidence_score=state.get("confidence_score"),
-        progress=min(100, int(state.get("iteration_count", 0) * 10)),
+        progress=100,
         explanation=state.get("explanation"),
         answers=state.get("answers", []),
     )

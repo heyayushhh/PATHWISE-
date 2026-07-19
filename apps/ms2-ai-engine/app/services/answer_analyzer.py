@@ -1,81 +1,70 @@
 """Rule-based answer analysis for adaptive assessment."""
 
-import re
 from typing import Any
-
+import re
 
 def _extract_keywords(text: str) -> list[str]:
     """Extract simple keywords from free-form text."""
-
     words = re.findall(r"[a-zA-Z]+", text.lower())
     return [word for word in words if len(word) > 2]
-
-
-def _normalize_interest_terms(keywords: list[str]) -> list[str]:
-    """Normalize raw words into a compact set of interest terms."""
-
-    normalized: list[str] = []
-    joined = " ".join(keywords)
-
-    if any(token in joined for token in ["program", "programming", "coding", "software"]):
-        normalized.append("programming")
-    if any(token in joined for token in ["math", "mathematics", "algebra"]):
-        normalized.append("mathematics")
-    if any(token in joined for token in ["problem", "solve", "solving", "problems"]):
-        normalized.append("problem solving")
-    if any(token in joined for token in ["design", "ui", "ux", "creative"]):
-        normalized.append("design")
-    if any(token in joined for token in ["write", "writing", "content"]):
-        normalized.append("writing")
-    if any(token in joined for token in ["lead", "leadership"]):
-        normalized.append("leadership")
-
-    return normalized
-
 
 def analyze_answer(question: dict[str, Any], answer: str, state: dict[str, Any]) -> dict[str, Any]:
     """Use deterministic rules to update the assessment state."""
 
-    keywords = _extract_keywords(answer)
+    category = question.get("category", "")
+    
+    # Extract current_stream if this is the stream question
+    current_stream = state.get("current_stream")
+    if category == "stream":
+        if "pcm" in answer.lower() and "pcmb" not in answer.lower():
+            current_stream = "PCM"
+        elif "pcmb" in answer.lower():
+            current_stream = "PCMB"
+        elif "pcb" in answer.lower():
+            current_stream = "PCB"
+        elif "commerce" in answer.lower():
+            current_stream = "Commerce"
+        elif "arts" in answer.lower() or "humanities" in answer.lower():
+            current_stream = "Humanities"
+        else:
+            current_stream = answer
+
+    # Update structured profile fields
     existing_interests = state.get("extracted_interests") or []
     existing_strengths = state.get("inferred_strengths") or []
     existing_traits = state.get("inferred_traits") or []
+    career_values = state.get("career_values") or []
+    work_preferences = state.get("work_preferences") or []
 
-    # Map MCQ answer to interest
-    normalized_interests = _normalize_interest_terms(keywords)
-    
-    # Add the full answer as an interest if it's an MCQ option
-    if answer:
-        normalized_interests.append(answer.lower())
+    if "interest" in category or category in ["pcm_area", "pcb_area"]:
+        if answer not in existing_interests:
+            existing_interests.append(answer)
+    elif "style" in category or category == "work_style":
+        if answer not in work_preferences:
+            work_preferences.append(answer)
+    elif "value" in category or category == "career_values":
+        if answer not in career_values:
+            career_values.append(answer)
+    elif "strength" in category or category == "subject_comfort":
+        if answer not in existing_strengths:
+            existing_strengths.append(answer)
+    else:
+        # Fallback keyword extraction for generic questions
+        keywords = _extract_keywords(answer)
+        if any(token in keywords for token in ["logic", "math", "solve", "coding"]):
+            if "analytical" not in [t.get("trait") for t in existing_traits]:
+                existing_traits.append({"trait": "analytical", "confidence": 0.8})
 
-    interests = list(dict.fromkeys([*(existing_interests), *normalized_interests]))
-
-    strengths = list(
-        dict.fromkeys(
-            [
-                *existing_strengths,
-                *[
-                    keyword
-                    for keyword in normalized_interests
-                    if keyword in {"programming", "mathematics", "problem solving", "design", "writing", "leadership"}
-                ],
-            ]
-        )
-    )
-
-    trait_name = "analytical" if any(keyword in keywords for keyword in ["logic", "math", "solve", "coding"]) else "curious"
-    traits = [
-        *existing_traits,
-        {"trait": trait_name, "confidence": 0.7},
-    ]
-
-    confidence = min(0.95, 0.35 + (len(interests) * 0.08) + (len(strengths) * 0.07))
+    confidence = min(0.95, 0.35 + (len(existing_interests) * 0.08) + (len(existing_strengths) * 0.07))
     uncertainty = max(0.05, 1.0 - confidence)
 
     return {
-        "extracted_interests": interests,
-        "inferred_strengths": strengths,
-        "inferred_traits": traits,
+        "current_stream": current_stream,
+        "extracted_interests": existing_interests,
+        "inferred_strengths": existing_strengths,
+        "inferred_traits": existing_traits,
+        "career_values": career_values,
+        "work_preferences": work_preferences,
         "confidence_score": round(confidence, 2),
         "uncertainty_score": round(uncertainty, 2),
     }

@@ -62,6 +62,62 @@ export const assessmentSessions = pgTable(
     .default("IN_PROGRESS"),
 
 
+    academicStage: varchar(
+      "academic_stage",
+      {
+        length: 50
+      }
+    ),
+
+
+    currentQuestionId: varchar(
+      "current_question_id",
+      {
+        length: 255
+      }
+    ),
+
+
+    currentQuestionNumber: integer(
+      "current_question_number"
+    ),
+
+
+    totalQuestions: integer(
+      "total_questions"
+    ),
+
+
+    answers: text(
+      "answers"
+    ),
+
+
+    progress: integer(
+      "progress"
+    ),
+
+
+    recommendationStatus: varchar(
+      "recommendation_status",
+      {
+        length: 50
+      }
+    )
+    .notNull()
+    .default("NOT_STARTED"),
+
+
+    recommendations: text(
+      "recommendations"
+    ),
+
+
+    explanation: text(
+      "explanation"
+    ),
+
+
     startedAt: timestamp(
       "started_at"
     )

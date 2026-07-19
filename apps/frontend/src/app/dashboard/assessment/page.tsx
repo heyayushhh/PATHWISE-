@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { startDynamicAssessment, submitDynamicAssessmentAnswer } from "@/services/assessment";
+import { startDynamicAssessment, submitDynamicAssessmentAnswer, getDynamicAssessmentStatus } from "@/services/assessment";
 import {
   readAssessmentSnapshot,
   readLastAssessmentResultId,
@@ -19,74 +19,102 @@ export default function AssessmentPage() {
   const searchParams = useSearchParams();
   const [sessionId, setSessionId] = useState("");
   const [currentQuestion, setCurrentQuestion] = useState<string | null>(null);
+  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
-  const [selectedOption, setSelectedOption] = useState<string>("");
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [questionNumber, setQuestionNumber] = useState<number>(1);
-  const [totalQuestions, setTotalQuestions] = useState<number>(4);
+  const [totalQuestions, setTotalQuestions] = useState<number>(10);
   const [assessmentStatus, setAssessmentStatus] = useState<"continue" | "completed">("continue");
   const [isHydrated, setIsHydrated] = useState(false);
   const [lastResultId, setLastResultId] = useState<string | null>(null);
 
   useEffect(() => {
-    const requestedSessionId = searchParams.get("sessionId");
-    const snapshot = readAssessmentSnapshot();
+    const loadSession = async () => {
+      const requestedSessionId = searchParams.get("sessionId");
+      const snapshot = readAssessmentSnapshot();
+      
+      const activeSessionId = requestedSessionId || (snapshot?.status === "continue" ? snapshot.sessionId : null);
+      
+      if (activeSessionId) {
+        try {
+          setIsLoading(true);
+          const status = await getDynamicAssessmentStatus(activeSessionId);
+          
+          if (status.status === "completed") {
+            writeAssessmentSnapshot({
+              sessionId: status.sessionId,
+              status: "completed",
+              currentQuestion: null,
+              questionId: null,
+              options: [],
+              progress: 100,
+              questionNumber: status.questionNumber ?? 10,
+              totalQuestions: status.totalQuestions ?? 10,
+              updatedAt: new Date().toISOString(),
+            });
+            writeLastAssessmentResultId(status.sessionId);
+            setLastResultId(status.sessionId);
+            router.push(`/dashboard/results?sessionId=${status.sessionId}`);
+            return;
+          }
 
-    if (requestedSessionId && snapshot?.sessionId === requestedSessionId) {
-      setSessionId(snapshot.sessionId);
-      setCurrentQuestion(snapshot.currentQuestion);
-      setOptions(snapshot.options || []);
-      setProgress(snapshot.progress);
-      setAssessmentStatus(snapshot.status);
-      setQuestionNumber(snapshot.questionNumber ?? 1);
-      setTotalQuestions(snapshot.totalQuestions ?? 4);
-      setIsHydrated(true);
-      return;
-    }
-
-    if (snapshot?.status === "continue") {
-      if (snapshot.options && snapshot.options.length > 0) {
-        setSessionId(snapshot.sessionId);
-        setCurrentQuestion(snapshot.currentQuestion);
-        setOptions(snapshot.options);
-        setProgress(snapshot.progress);
-        setAssessmentStatus(snapshot.status);
-        setQuestionNumber(snapshot.questionNumber ?? 1);
-        setTotalQuestions(snapshot.totalQuestions ?? 4);
-      } else {
-        setSessionId(snapshot.sessionId);
-        setCurrentQuestion(snapshot.currentQuestion);
-        setOptions([]);
-        setProgress(snapshot.progress);
-        setAssessmentStatus(snapshot.status);
-        setQuestionNumber(snapshot.questionNumber ?? 1);
-        setTotalQuestions(snapshot.totalQuestions ?? 4);
+          setSessionId(status.sessionId);
+          setCurrentQuestion(status.question);
+          setCurrentQuestionId(status.questionId);
+          setOptions(status.options || []);
+          setProgress(status.progress ?? 0);
+          setAssessmentStatus("continue");
+          setQuestionNumber(status.questionNumber ?? 1);
+          setTotalQuestions(status.totalQuestions ?? 10);
+          
+          // Re-sync snapshot
+          writeAssessmentSnapshot({
+            sessionId: status.sessionId,
+            status: "continue",
+            currentQuestion: status.question,
+            questionId: status.questionId,
+            options: status.options || [],
+            progress: status.progress ?? 0,
+            questionNumber: status.questionNumber ?? 1,
+            totalQuestions: status.totalQuestions ?? 10,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error("Failed to restore session from backend", err);
+          setError("Failed to restore your assessment session. Please try starting a new one.");
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
+      
+      setLastResultId(readLastAssessmentResultId());
+      setIsHydrated(true);
+    };
 
-    setLastResultId(readLastAssessmentResultId());
-    setIsHydrated(true);
-  }, [searchParams]);
+    loadSession();
+  }, [searchParams, router]);
 
   const handleStartAssessment = async () => {
     try {
       setIsLoading(true);
-      setError("");
+      setError(null);
       const session = await startDynamicAssessment("career_interest");
 
       const qNum = session.questionNumber ?? 1;
-      const totalQs = session.totalQuestions ?? 4;
+      const totalQs = session.totalQuestions ?? 10;
       const startProgress = session.progress ?? 0;
 
       setSessionId(session.sessionId);
       setCurrentQuestion(session.question);
+      setCurrentQuestionId(session.questionId);
       setOptions(session.options || []);
       setProgress(startProgress);
       setAssessmentStatus("continue");
-      setSelectedOption("");
+      setSelectedAnswer(null);
       setQuestionNumber(qNum);
       setTotalQuestions(totalQs);
 
@@ -94,6 +122,7 @@ export default function AssessmentPage() {
         sessionId: session.sessionId,
         status: "continue",
         currentQuestion: session.question,
+        questionId: session.questionId,
         options: session.options || [],
         progress: startProgress,
         questionNumber: qNum,
@@ -107,17 +136,30 @@ export default function AssessmentPage() {
     }
   };
 
+  const handleSelectOption = (option: string) => {
+    setSelectedAnswer(option);
+    setError(null);
+  };
+
   const handleSubmitAnswer = async () => {
-    if (!sessionId || !selectedOption) {
-      setError("Please select an option before continuing.");
+    const answerToSubmit = selectedAnswer;
+
+    if (!sessionId || !answerToSubmit || !currentQuestionId) {
+      setError(`Please select an option before continuing. (Debug: qId=${currentQuestionId || "null"}, sId=${sessionId ? "ok" : "null"}, ans=${answerToSubmit || "null"})`);
       return;
     }
 
+    console.log("[Assessment] Submitting:", {
+      sessionId,
+      questionId: currentQuestionId,
+      answer: answerToSubmit,
+    });
+
     try {
       setIsSubmitting(true);
-      setError("");
+      setError(null);
 
-      const response = await submitDynamicAssessmentAnswer(sessionId, selectedOption);
+      const response = await submitDynamicAssessmentAnswer(sessionId, answerToSubmit, currentQuestionId);
       const newStatus = response.status === "completed" ? "completed" : "continue";
       setAssessmentStatus(newStatus);
       const nextProgress = response.progress ?? progress;
@@ -128,6 +170,7 @@ export default function AssessmentPage() {
           sessionId,
           status: "completed",
           currentQuestion: null,
+          questionId: null,
           options: [],
           progress: 100,
           questionNumber,
@@ -144,8 +187,9 @@ export default function AssessmentPage() {
       const nextTotalQs = response.totalQuestions ?? totalQuestions;
 
       setCurrentQuestion(response.nextQuestion);
+      setCurrentQuestionId(response.nextQuestionId);
       setOptions(response.options || []);
-      setSelectedOption("");
+      setSelectedAnswer(null);
       setQuestionNumber(nextQNum);
       setTotalQuestions(nextTotalQs);
 
@@ -153,6 +197,7 @@ export default function AssessmentPage() {
         sessionId,
         status: "continue",
         currentQuestion: response.nextQuestion,
+        questionId: response.nextQuestionId,
         options: response.options || [],
         progress: nextProgress,
         questionNumber: nextQNum,
@@ -277,24 +322,27 @@ export default function AssessmentPage() {
                     options.map((option) => (
                       <button
                         key={option}
-                        onClick={() => setSelectedOption(option)}
+                        onClick={() => handleSelectOption(option)}
+                        disabled={isSubmitting}
                         className={`flex items-center w-full min-h-[54px] sm:min-h-[58px] rounded-xl border p-4 text-left transition-all duration-200 group ${
-                          selectedOption === option
+                          isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                        } ${
+                          selectedAnswer === option
                             ? "border-primary bg-primary/5 shadow-sm"
                             : "border-border bg-card hover:border-primary/30 hover:bg-secondary/50"
                         }`}
                       >
                         <div className={`mr-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                          selectedOption === option 
+                          selectedAnswer === option 
                             ? "border-primary bg-primary" 
                             : "border-muted-foreground/30 group-hover:border-primary/30"
                         }`}>
-                          {selectedOption === option && (
+                          {selectedAnswer === option && (
                             <div className="h-2 w-2 rounded-full bg-primary-foreground" />
                           )}
                         </div>
                         <span className={`text-sm sm:text-base font-medium ${
-                          selectedOption === option ? "text-foreground font-semibold" : "text-foreground/80"
+                          selectedAnswer === option ? "text-foreground font-semibold" : "text-foreground/80"
                         }`}>
                           {option}
                         </span>
@@ -345,9 +393,9 @@ export default function AssessmentPage() {
               
               <button
                 onClick={handleSubmitAnswer}
-                disabled={!selectedOption || isSubmitting || hasNoOptions}
+                disabled={!selectedAnswer || isSubmitting || hasNoOptions}
                 className={`flex items-center gap-2 px-6 rounded-xl py-3 text-sm font-semibold transition-all ${
-                  (!selectedOption || isSubmitting || hasNoOptions)
+                  (!selectedAnswer || isSubmitting || hasNoOptions)
                     ? "bg-secondary text-muted-foreground cursor-not-allowed"
                     : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5 active:scale-95"
                 }`}

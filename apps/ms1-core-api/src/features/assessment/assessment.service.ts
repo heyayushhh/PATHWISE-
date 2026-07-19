@@ -19,29 +19,131 @@ import {
 
 
 export async function startAssessment(
-  userId:string,
-  assessmentType:string
-){
-
-
-  const [session] =
-    await db
-      .insert(assessmentSessions)
-      .values({
-
-        userId,
-
-        assessmentType,
-
-        status:"IN_PROGRESS"
-
-      })
-      .returning();
-
-
+  userId: string,
+  assessmentType: string,
+  academicStage: string = "Class 10"
+) {
+  const [session] = await db
+    .insert(assessmentSessions)
+    .values({
+      userId,
+      assessmentType,
+      status: "IN_PROGRESS",
+      academicStage,
+      currentQuestionId: "start",
+      currentQuestionNumber: 1,
+      totalQuestions: 10,
+      answers: JSON.stringify([]),
+      progress: 0,
+      recommendationStatus: "NOT_STARTED",
+    })
+    .returning();
 
   return session;
+}
 
+export async function saveAssessmentState(
+  sessionId: string,
+  state: {
+    current_question?: any;
+    iteration_count?: number;
+    total_questions?: number;
+    answers?: any[];
+    progress?: number;
+    is_complete?: boolean;
+    recommendation_status?: string;
+    recommendations?: any[];
+    explanation?: string;
+  }
+) {
+  const updates: Record<string, any> = {};
+
+  if (state.current_question !== undefined) {
+    updates.currentQuestionId = state.current_question?.id ?? null;
+  }
+  if (state.iteration_count !== undefined) {
+    updates.currentQuestionNumber = state.iteration_count;
+  }
+  if (state.total_questions !== undefined) {
+    updates.totalQuestions = state.total_questions;
+  }
+  if (state.answers !== undefined) {
+    updates.answers = JSON.stringify(state.answers);
+  }
+  if (state.progress !== undefined) {
+    updates.progress = state.progress;
+  }
+  if (state.is_complete !== undefined) {
+    updates.status = state.is_complete ? "COMPLETED" : "IN_PROGRESS";
+    if (state.is_complete) {
+      updates.completedAt = new Date();
+    }
+  }
+  if (state.recommendation_status !== undefined) {
+    updates.recommendationStatus = state.recommendation_status;
+  }
+  if (state.recommendations !== undefined) {
+    updates.recommendations = JSON.stringify(state.recommendations);
+  }
+  if (state.explanation !== undefined) {
+    updates.explanation = state.explanation;
+  }
+
+  const [session] = await db
+    .update(assessmentSessions)
+    .set(updates)
+    .where(eq(assessmentSessions.id, sessionId))
+    .returning();
+
+  return session ?? null;
+}
+
+export function formatDbSessionToMs2State(session: any): Record<string, any> {
+  const answers = session.answers ? JSON.parse(session.answers) : [];
+  const recommendations = session.recommendations ? JSON.parse(session.recommendations) : [];
+  
+  const questionHistory = answers.map((a: any, idx: number) => ({
+    question: a.question,
+    question_id: a.question_id,
+    category: a.category,
+    reason: "",
+    answer: a.answer,
+    iteration: idx + 1
+  }));
+
+  const askedCategories = answers.map((a: any) => a.category).filter(Boolean);
+  const allCategories = [
+    "interests", "strengths", "personality", "work_style",
+    "leadership", "creativity", "communication", "problem_solving"
+  ];
+  const remainingCategories = allCategories.filter(c => !askedCategories.includes(c));
+
+  return {
+    user_id: session.userId,
+    session_id: session.id,
+    assessment_type: session.assessmentType,
+    academic_stage: session.academicStage || "Class 10",
+    user_profile: { user_id: session.userId },
+    answers: answers,
+    current_question: session.currentQuestionId ? { id: session.currentQuestionId } : null,
+    question_history: questionHistory,
+    pending_answer: null,
+    candidate_careers: [],
+    extracted_interests: [],
+    inferred_traits: [],
+    inferred_strengths: [],
+    confidence_score: 0.0,
+    uncertainty_score: 1.0,
+    asked_categories: askedCategories,
+    remaining_categories: remainingCategories,
+    iteration_count: session.currentQuestionNumber || 0,
+    max_questions: 12,
+    confidence_threshold: 0.85,
+    is_complete: session.status === "COMPLETED",
+    recommendations: recommendations,
+    explanation: session.explanation || "",
+    recommendation_status: session.recommendationStatus || "NOT_STARTED"
+  };
 }
 
 
