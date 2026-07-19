@@ -22,10 +22,13 @@ class AdaptiveAssessmentState(TypedDict):
     question_history: list[dict]
     pending_answer: dict | None
 
+    current_stream: str | None
     candidate_careers: list[dict]
     extracted_interests: list[str]
     inferred_traits: list[dict]
     inferred_strengths: list[str]
+    career_values: list[str]
+    work_preferences: list[str]
 
     confidence_score: float
     uncertainty_score: float

@@ -32,8 +32,10 @@ def get_gemini_model():
             api_key=api_key
         )
 
+        model_name = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")
+        
         _model = genai.GenerativeModel(
-            "models/gemini-flash-latest"
+            model_name
         )
 
     return _model

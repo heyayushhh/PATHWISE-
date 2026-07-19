@@ -28,11 +28,17 @@ export async function startDynamicAssessment(assessmentType = "career_interest")
   return res.data;
 }
 
-export async function submitDynamicAssessmentAnswer(sessionId: string, answer: string) {
+export async function submitDynamicAssessmentAnswer(sessionId: string, answer: string, questionId: string) {
   const res = await api.post<DynamicAssessmentTurnResponse>(`/assessment/dynamic/${sessionId}/answer`, {
     answer,
+    questionId,
   });
 
+  return res.data;
+}
+
+export async function getDynamicAssessmentStatus(sessionId: string) {
+  const res = await api.get<DynamicAssessmentStartResponse & { isComplete: boolean; recommendationStatus: string }>(`/assessment/dynamic/${sessionId}`);
   return res.data;
 }
 

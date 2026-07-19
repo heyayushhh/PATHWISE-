@@ -17,10 +17,18 @@ import {
   startDynamicAssessmentController,
   getDynamicAssessmentResultController,
   submitDynamicAnswerController,
+  getDynamicAssessmentStatusController,
 } from "./assessment.dynamic.controller";
 
 const router =
 Router();
+
+
+
+router.get(
+  "/dynamic/:sessionId",
+  getDynamicAssessmentStatusController
+);
 
 
 

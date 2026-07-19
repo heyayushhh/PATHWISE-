@@ -59,6 +59,7 @@ export interface AssessmentSessionResponse {
 export interface DynamicAssessmentStartResponse {
   sessionId: string;
   question: string | null;
+  questionId: string | null;
   options: string[];
   status: string;
   questionNumber?: number | null;
@@ -92,6 +93,7 @@ export type CareerRecommendation = GeminiCareerRecommendation | DeterministicCar
 export interface DynamicAssessmentTurnResponse {
   sessionId: string;
   nextQuestion: string | null;
+  nextQuestionId: string | null;
   options: string[];
   status: "continue" | "completed" | string;
   recommendations: CareerRecommendation[];
@@ -121,6 +123,7 @@ export interface AssessmentSessionSnapshot {
   sessionId: string;
   status: "continue" | "completed";
   currentQuestion: string | null;
+  questionId: string | null;
   options: string[];
   progress: number;
   updatedAt: string;

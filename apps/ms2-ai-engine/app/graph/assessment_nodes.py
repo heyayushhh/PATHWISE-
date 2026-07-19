@@ -27,10 +27,13 @@ def initialize_assessment_node(state: AdaptiveAssessmentState):
     state["question_history"] = state.get("question_history") or []
     state["pending_answer"] = state.get("pending_answer")
 
+    state["current_stream"] = state.get("current_stream")
     state["candidate_careers"] = state.get("candidate_careers") or []
     state["extracted_interests"] = state.get("extracted_interests") or []
     state["inferred_traits"] = state.get("inferred_traits") or []
     state["inferred_strengths"] = state.get("inferred_strengths") or []
+    state["career_values"] = state.get("career_values") or []
+    state["work_preferences"] = state.get("work_preferences") or []
 
     state["confidence_score"] = float(state.get("confidence_score", 0.0))
     state["uncertainty_score"] = float(state.get("uncertainty_score", 1.0))
@@ -58,16 +61,10 @@ def decision_node(state: AdaptiveAssessmentState):
         print("  Assessment already complete")
         return state
 
-    if state.get("iteration_count", 0) >= state.get("max_questions", 12):
+    if state.get("iteration_count", 0) >= 12:
         print("  Reached maximum question limit")
         state["is_complete"] = True
         state["explanation"] = "Maximum question limit reached"
-        return state
-
-    if state.get("confidence_score", 0.0) >= state.get("confidence_threshold", 0.85):
-        print("  Confidence threshold reached")
-        state["is_complete"] = True
-        state["explanation"] = "Confidence threshold reached"
         return state
 
     print("  Continuing with the adaptive assessment loop")
@@ -82,41 +79,46 @@ def question_generator_node(state: AdaptiveAssessmentState):
 
     question_data = generate_next_question(state)
     state["current_question"] = question_data
-    state["iteration_count"] = int(state.get("iteration_count", 0)) + 1
+    
+    if question_data:
+        state["iteration_count"] = int(state.get("iteration_count", 0)) + 1
 
-    state["question_history"] = state.get("question_history") or []
-    state["question_history"].append(
-        {
-            "question": question_data.get("question"),
-            "question_id": question_data.get("id"),
-            "category": question_data.get("category"),
-            "reason": question_data.get("reason"),
-            "answer": None,
-            "iteration": state["iteration_count"],
-        }
-    )
-
-    state["asked_categories"] = list(
-        dict.fromkeys(
-            [*state.get("asked_categories", []), question_data.get("category")]
+        state["question_history"] = state.get("question_history") or []
+        state["question_history"].append(
+            {
+                "question": question_data.get("question"),
+                "question_id": question_data.get("id"),
+                "category": question_data.get("category"),
+                "reason": question_data.get("reason"),
+                "answer": None,
+                "iteration": state["iteration_count"],
+            }
         )
-    )
-    state["remaining_categories"] = [
-        category
-        for category in [
-            "interests",
-            "strengths",
-            "personality",
-            "work_style",
-            "leadership",
-            "creativity",
-            "communication",
-            "problem_solving",
-        ]
-        if category not in state["asked_categories"]
-    ]
 
-    print(f"  Generated question for category: {question_data.get('category')}")
+        state["asked_categories"] = list(
+            dict.fromkeys(
+                [*state.get("asked_categories", []), question_data.get("category")]
+            )
+        )
+        state["remaining_categories"] = [
+            category
+            for category in [
+                "interests",
+                "strengths",
+                "personality",
+                "work_style",
+                "leadership",
+                "creativity",
+                "communication",
+                "problem_solving",
+            ]
+            if category not in state["asked_categories"]
+        ]
+
+        print(f"  Generated question for category: {question_data.get('category')}")
+    else:
+        print("  No more questions generated (is_complete is True)")
+
     return state
 
 
@@ -171,9 +173,12 @@ def answer_analysis_node(state: AdaptiveAssessmentState):
         }
     )
 
+    state["current_stream"] = analysis.get("current_stream")
     state["extracted_interests"] = analysis["extracted_interests"]
     state["inferred_strengths"] = analysis["inferred_strengths"]
     state["inferred_traits"] = analysis["inferred_traits"]
+    state["career_values"] = analysis.get("career_values", [])
+    state["work_preferences"] = analysis.get("work_preferences", [])
     state["confidence_score"] = analysis["confidence_score"]
     state["uncertainty_score"] = analysis["uncertainty_score"]
 
@@ -188,16 +193,16 @@ def answer_analysis_node(state: AdaptiveAssessmentState):
 
 
 def recommendation_node(state: AdaptiveAssessmentState):
-    """Generate deterministic recommendations from current evidence."""
+    """Mark assessment as complete and ready for separate recommendation generation."""
 
     print("\n========== RECOMMENDATION NODE ==========")
     validate_assessment_state(state)
 
-    state["recommendations"] = generate_recommendations(state)
     state["is_complete"] = True
-    state["explanation"] = "Recommendations generated from the current assessment state"
+    state["explanation"] = "Assessment complete. Recommendations pending."
+    state["recommendations"] = []
 
-    print("  Recommendations generated")
+    print("  Assessment completed. Recommendations generation decoupled.")
     return state
 
 

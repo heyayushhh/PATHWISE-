@@ -16,6 +16,14 @@ class AssessmentAnswerRequest(BaseModel):
     """Payload for submitting an answer to an ongoing assessment."""
 
     answer: str = Field(..., min_length=1, description="User answer text")
+    question_id: str = Field(..., min_length=1, description="ID of the question being answered")
+
+
+class RestoreSessionRequest(BaseModel):
+    """Payload for restoring assessment state from MS1."""
+
+    session_id: str
+    state: dict[str, Any]
 
 
 class AssessmentStartResponse(BaseModel):
@@ -23,6 +31,7 @@ class AssessmentStartResponse(BaseModel):
 
     session_id: str
     question: Optional[str] = None
+    question_id: Optional[str] = None
     options: Optional[list[str]] = None
     category: Optional[str] = None
     status: str = "continue"
@@ -38,6 +47,7 @@ class AssessmentTurnResponse(BaseModel):
     status: str
     session_id: str
     question: Optional[str] = None
+    question_id: Optional[str] = None
     options: Optional[list[str]] = None
     category: Optional[str] = None
     recommendations: Optional[list[dict[str, Any]]] = None
@@ -54,6 +64,7 @@ class AssessmentStatusResponse(BaseModel):
     session_id: str
     status: str
     current_question: Optional[str] = None
+    question_id: Optional[str] = None
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
     is_complete: bool = False
