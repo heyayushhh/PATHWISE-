@@ -89,3 +89,75 @@ def score_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     # Sort candidates by match_score descending
     candidates.sort(key=lambda x: x["match_score"], reverse=True)
     return candidates[:4]
+
+def score_candidates_stateless(profile: dict, candidates: list[dict]) -> list[dict]:
+    """Score candidates provided by MS1 based on profile dimensions deterministically."""
+    academic_stage = profile.get("academic_stage", "Class 10")
+    
+    extracted_interests = [i.lower() for i in profile.get("extracted_interests", [])]
+    inferred_strengths = [s.lower() for s in profile.get("inferred_strengths", [])]
+    career_values = [v.lower() for v in profile.get("career_values", [])]
+    work_preferences = [w.lower() for w in profile.get("work_preferences", [])]
+    
+    all_evidence = set(extracted_interests + inferred_strengths + career_values + work_preferences)
+    
+    scored_results = []
+    
+    for candidate in candidates:
+        slug = candidate.get("slug")
+        title = candidate.get("title")
+        base_score = 60 # Starting score for eligible candidate
+        score_breakdown = {}
+        
+        # Scoring logic based on keywords mapping (simplified for MVP)
+        tech_keywords = {"coding", "programming", "software", "ai", "data", "computers & technology", "technology"}
+        bio_keywords = {"biology", "healthcare", "medicine", "treating patients", "life sciences"}
+        business_keywords = {"business & money", "entrepreneurship", "finance", "management", "marketing"}
+        creative_keywords = {"arts & humanities", "creative work & design", "design"}
+        
+        # Determine candidate family alignment
+        family = candidate.get("careerFamily", "").lower()
+        if family in ["technology", "engineering", "it"]:
+            if tech_keywords.intersection(all_evidence):
+                base_score += 25
+                score_breakdown["technology_interest"] = {"score": 1.0, "weight": 0.25}
+            if "mathematics" in all_evidence:
+                base_score += 10
+                score_breakdown["math_comfort"] = {"score": 1.0, "weight": 0.10}
+        
+        elif family in ["healthcare", "life sciences", "medical"]:
+            if bio_keywords.intersection(all_evidence):
+                base_score += 30
+                score_breakdown["biology_interest"] = {"score": 1.0, "weight": 0.30}
+                
+        elif family in ["business", "finance", "marketing"]:
+            if business_keywords.intersection(all_evidence):
+                base_score += 25
+                score_breakdown["business_interest"] = {"score": 1.0, "weight": 0.25}
+                
+        elif family in ["design", "architecture", "media", "creative"]:
+            if creative_keywords.intersection(all_evidence):
+                base_score += 30
+                score_breakdown["creative_interest"] = {"score": 1.0, "weight": 0.30}
+        
+        # Normalize score
+        final_score = min(98, max(50, base_score))
+        
+        scored_results.append({
+            "candidate_id": candidate.get("id"),
+            "slug": slug,
+            "title": title,
+            "recommendation_type": candidate.get("type", "CAREER"), # ACADEMIC_DIRECTION, CAREER, COURSE
+            "match_score": final_score,
+            "personalized_reason": f"Strong alignment based on assessment profile strengths and interests.",
+            "score_breakdown": score_breakdown,
+        })
+        
+    # Sort candidates by match_score descending
+    scored_results.sort(key=lambda x: x["match_score"], reverse=True)
+    
+    # Mark top 1 as primary
+    if scored_results:
+        scored_results[0]["is_primary"] = True
+        
+    return scored_results[:5]

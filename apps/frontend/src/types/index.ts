@@ -78,14 +78,27 @@ export interface GeminiCareerRecommendation {
 }
 
 export interface DeterministicCareerRecommendation {
-  career_name: string;
-  why_suitable: string;
+  id: string;
+  recommendation_type?: string;
+  candidate_id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  careerFamily?: string;
+  educationLevel?: string;
+  career_name?: string; // legacy support
+  why_suitable?: string; // legacy support
+  personalized_reason?: string;
   match_score?: number;
   match_level?: string;
   strengths?: string[];
   required_skills?: string[];
   next_steps?: string;
   confidence?: number;
+  score_breakdown?: any;
+  is_primary?: boolean;
+  is_target?: boolean;
+  type?: string;
 }
 
 export type CareerRecommendation = GeminiCareerRecommendation | DeterministicCareerRecommendation;
@@ -105,13 +118,18 @@ export interface DynamicAssessmentTurnResponse {
 }
 
 export interface DynamicAssessmentResultResponse {
-  session_id: string;
+  sessionId?: string;
+  session_id?: string; // legacy support
   status: string;
   recommendations: CareerRecommendation[];
-  confidence_score: number | null;
-  progress: number | null;
+  confidenceScore?: number | null;
+  confidence_score?: number | null; // legacy
+  progress?: number | null;
   explanation: string | null;
-  academic_stage?: string;
+  academicStage?: string;
+  academic_stage?: string; // legacy
+  recommendationType?: string;
+  recommendationSetId?: string;
   answers: Array<{
     question?: string;
     category?: string;
