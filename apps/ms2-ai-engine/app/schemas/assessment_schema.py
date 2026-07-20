@@ -45,6 +45,19 @@ class AssessmentStartResponse(BaseModel):
     total_questions: Optional[int] = None
 
 
+class StudentAssessmentProfile(BaseModel):
+    """Structured assessment profile representing student's interests, strengths, values, etc."""
+
+    extracted_interests: list[str] = []
+    inferred_strengths: list[str] = []
+    career_values: list[str] = []
+    work_preferences: list[str] = []
+    inferred_traits: list[dict[str, Any]] = []
+    current_stream: Optional[str] = None
+    confidence_score: float = 0.0
+    answers: list[dict[str, Any]] = []
+
+
 class AssessmentTurnResponse(BaseModel):
     """Response returned after an assessment turn."""
 
@@ -58,7 +71,7 @@ class AssessmentTurnResponse(BaseModel):
     confidence_score: Optional[float] = None
     progress: Optional[int] = None
     explanation: Optional[str] = None
-    profile: Optional[dict[str, Any]] = None
+    profile: Optional[StudentAssessmentProfile] = None
     question_number: Optional[int] = None
     total_questions: Optional[int] = None
 
@@ -85,3 +98,5 @@ class AssessmentResultResponse(BaseModel):
     progress: Optional[int] = None
     explanation: Optional[str] = None
     answers: list[dict[str, Any]] = []
+    profile: Optional[StudentAssessmentProfile] = None
+

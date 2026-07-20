@@ -1590,3 +1590,848 @@ Architecture Decisions
 Do NOT implement assessment or AI features.
 
 
+# PATHWISE — PHASE 1: CAREER & COURSE KNOWLEDGE FOUNDATION
+AND DETERMINISTIC RECOMMENDATION ARCHITECTURE
+
+IMPORTANT CONTEXT
+
+PathWise is an adaptive career guidance platform targeting two fundamentally
+different student groups:
+
+1. Class 10 students:
+   Goal = understand interests, subjects, strengths, work preferences and
+   career values, then recommend suitable academic streams/directions and
+   career families to explore.
+
+2. Class 12 students:
+   Goal = understand their EXISTING stream (PCM, PCB, PCMB, Commerce with
+   Maths, Commerce without Maths, Arts/Humanities, Vocational/Other), their
+   interests, strengths and goals, then recommend eligible courses/degrees,
+   specializations and career paths.
+
+The existing project already contains:
+
+- Single pnpm/Turborepo monorepo
+- Next.js frontend
+- Express + TypeScript MS1 Core API
+- FastAPI + Python MS2 AI Engine
+- PostgreSQL
+- Redis
+- Neo4j
+- Docker
+- JWT authentication
+- LangGraph/LangChain integration
+- Class 10 assessment
+- Class 12 stream-specific assessment branches
+- Approximately 10-question adaptive/structured assessments
+- Stable question IDs
+- Answer submission idempotency
+- Assessment session persistence
+- Assessment restoration/recovery architecture
+- PostgreSQL assessment state synchronization
+- Double-submit protection
+- Results and Roadmap frontend pages
+
+DO NOT redesign or visually modify the frontend in this phase.
+
+DO NOT rewrite the working assessment flow.
+
+DO NOT modify authentication unless absolutely required.
+
+DO NOT introduce Gemini/API calls in Phase 1.
+
+The purpose of Phase 1 is to create the reliable data and recommendation
+foundation that later Gemini personalization will use.
+
+
+===========================================================
+PHASE 1 OBJECTIVE
+===========================================================
+
+Build a canonical Career & Course Knowledge Layer in PostgreSQL and connect
+it to a deterministic recommendation/matching architecture.
+
+The system must separate:
+
+A. CANONICAL KNOWLEDGE
+   Information that is mostly the same for every user.
+
+B. PERSONALIZED RECOMMENDATION DATA
+   Information that depends on an individual student's assessment.
+
+Example:
+
+CAREER:
+AI/ML Engineer
+
+Canonical information:
+- Career overview
+- Relevant courses
+- Skills
+- Career progression
+- Salary ranges
+- Industries
+- Eligibility context
+
+User A:
+AI/ML Engineer
+Match Score: 92%
+
+User B:
+AI/ML Engineer
+Match Score: 81%
+
+Both users reference the SAME canonical AI/ML Engineer record.
+
+The match score and personalized explanation belong to the individual
+user recommendation.
+
+The canonical career details must NOT be regenerated for every user.
+
+
+===========================================================
+STEP 0 — AUDIT BEFORE IMPLEMENTATION
+===========================================================
+
+Before changing any code:
+
+Inspect the complete existing repository.
+
+Specifically inspect:
+
+- Existing Drizzle/PostgreSQL schemas
+- Existing assessment schemas
+- Existing user/profile schemas
+- Existing recommendation tables
+- Existing roadmap tables
+- Existing MS1 recommendation services/controllers/routes
+- Existing MS2 recommendation_engine.py
+- Existing scoring logic
+- Existing assessment state structure
+- Existing question_history / answers structure
+- Existing Results page API contract
+- Existing Roadmap data contract
+- Existing Neo4j integration
+- Existing Redis integration
+
+Do NOT duplicate existing tables or functionality.
+
+Reuse and extend existing architecture wherever appropriate.
+
+Before implementation, produce a concise implementation plan listing:
+
+1. Existing components that can be reused.
+2. Existing components that need modification.
+3. New database tables required.
+4. New services required.
+5. Database migration/schema changes.
+6. Exact MS1 files affected.
+7. Exact MS2 files affected.
+8. Whether any frontend contract must change.
+
+Wait for approval before implementing.
+
+
+===========================================================
+DATABASE KNOWLEDGE MODEL
+===========================================================
+
+Design the canonical PostgreSQL knowledge layer.
+
+At minimum evaluate the need for:
+
+career_streams
+careers
+courses
+skills
+career_skills
+career_courses
+course_eligibility
+career_salary_ranges
+user_recommendations
+student_assessment_profiles
+
+Reuse existing tables if equivalent tables already exist.
+
+Do NOT blindly create all tables if the project already contains suitable
+schemas.
+
+
+===========================================================
+CAREERS
+===========================================================
+
+A career should support fields similar to:
+
+id
+slug
+title
+short_description
+full_description
+career_family
+industry
+education_level
+is_active
+created_at
+updated_at
+
+Avoid over-normalization for the MVP, but maintain clean relational design.
+
+
+===========================================================
+COURSES
+===========================================================
+
+A course should support:
+
+id
+slug
+title
+course_type
+description
+duration
+education_level
+is_active
+created_at
+updated_at
+
+Examples:
+
+B.Tech Computer Science
+B.Tech Artificial Intelligence & Machine Learning
+B.Tech Data Science
+MBBS
+BDS
+B.Pharm
+B.Com
+BBA
+BA Psychology
+BA Political Science
+
+
+===========================================================
+CAREER ↔ COURSE RELATIONSHIP
+===========================================================
+
+One career may have multiple educational pathways.
+
+One course may lead to multiple careers.
+
+Implement a many-to-many relationship.
+
+Example:
+
+AI/ML Engineer
+
+Possible courses:
+
+B.Tech CSE
+B.Tech AI & ML
+B.Tech Data Science
+B.Sc Computer Science
+
+Do not assume that every career has exactly one degree.
+
+
+===========================================================
+COURSE ELIGIBILITY
+===========================================================
+
+Eligibility must be structured and deterministic.
+
+Possible fields:
+
+course_id
+academic_stage
+required_stream
+mathematics_required
+biology_required
+minimum_percentage
+notes
+
+The system must be capable of filtering clearly ineligible courses before
+recommendation.
+
+Examples:
+
+A Class 12 Commerce-without-Maths student should not receive a course that
+strictly requires PCM unless an alternative valid pathway exists.
+
+A Class 12 student without Biology should not receive MBBS as an eligible
+primary recommendation.
+
+Do NOT rely on an LLM to enforce basic educational eligibility.
+
+
+===========================================================
+SKILLS
+===========================================================
+
+Create or reuse a skills knowledge model.
+
+Examples:
+
+Programming
+Mathematics
+Analytical Thinking
+Communication
+Creativity
+Leadership
+Biology
+Problem Solving
+Design Thinking
+
+Implement Career ↔ Skill relationships.
+
+Where useful, support a relevance or importance weight.
+
+Example:
+
+AI/ML Engineer
+
+Programming = 1.0
+Mathematics = 0.9
+Analytical Thinking = 0.9
+Communication = 0.5
+
+
+===========================================================
+SALARY INFORMATION
+===========================================================
+
+Salary information must NOT be generated dynamically by an LLM.
+
+Store structured salary ranges.
+
+Possible fields:
+
+career_id
+country
+currency
+experience_level
+min_salary
+max_salary
+source
+last_verified_at
+
+Experience levels may include:
+
+ENTRY
+MID
+SENIOR
+
+Do not fabricate salary numbers.
+
+If reliable seed data is not currently available, leave salary records
+empty rather than inserting fake values.
+
+The UI should handle unavailable salary information gracefully.
+
+
+===========================================================
+STUDENT ASSESSMENT PROFILE
+===========================================================
+
+The existing assessment produces answer history.
+
+Build a deterministic transformation layer that converts completed
+assessment answers into a structured student assessment profile.
+
+Possible structure:
+
+academicStage
+currentStream
+subjectInterests
+careerInterests
+strengths
+workStyle
+careerValues
+mathComfort
+biologyInterest
+technologyInterest
+creativeInterest
+businessInterest
+socialHelpingInterest
+careerCertainty
+
+This profile should be derived from ALL relevant assessment answers.
+
+Do NOT generate this profile from only the final answer.
+
+Do NOT use Gemini in Phase 1.
+
+The profile must be reproducible from the same assessment answers.
+
+
+===========================================================
+CLASS 10 RECOMMENDATION LOGIC
+===========================================================
+
+Class 10 recommendation goals are fundamentally different from Class 12.
+
+Class 10 primary outputs:
+
+1. Recommended academic direction/stream
+2. Alternative academic direction
+3. Career families to explore
+
+Possible academic directions:
+
+Science — PCM
+Science — PCB
+Science — PCMB
+Commerce
+Commerce with Mathematics
+Humanities / Arts
+Design / Creative
+Vocational / Skill-Based
+
+The deterministic scoring engine should use:
+
+- Subject interests
+- Mathematics comfort
+- Science interest
+- Biology interest
+- Technology interest
+- Business interest
+- Creative interest
+- Strengths
+- Work style
+- Career values
+- Career certainty
+
+The system should produce match scores.
+
+Example:
+
+Science — PCM: 91
+Commerce with Mathematics: 76
+Design / Creative: 54
+
+The exact weights must be documented in code/configuration and should be
+easy to modify.
+
+Do NOT generate fake precision.
+
+Scores should represent internal compatibility scores, not scientific
+probabilities.
+
+The UI may display them as "Match Score" rather than claiming a literal
+probability of career success.
+
+
+===========================================================
+CLASS 12 RECOMMENDATION LOGIC
+===========================================================
+
+Class 12 recommendations must consider:
+
+academicStage = Class 12
+currentStream
+assessment profile
+course eligibility
+career interests
+strengths
+subject preferences
+work style
+career values
+
+Pipeline:
+
+Completed Assessment
+        ↓
+Structured Student Profile
+        ↓
+Eligibility Filter
+        ↓
+Eligible Courses
+        ↓
+Career/Course Candidate Matching
+        ↓
+Deterministic Match Scores
+        ↓
+Top Recommendations
+
+Example:
+
+Class 12 PCM student
+
+AI/ML Engineer: 92
+Data Scientist: 87
+Software Engineer: 83
+
+Associated eligible courses:
+
+B.Tech AI & ML
+B.Tech CSE
+B.Tech Data Science
+
+
+A PCB student may instead receive:
+
+Medicine
+Biotechnology
+Pharmacy
+Biomedical Sciences
+Psychology
+Physiotherapy
+
+depending on their assessment answers and eligibility.
+
+
+===========================================================
+USER RECOMMENDATIONS
+===========================================================
+
+Recommendations must be persisted.
+
+A user recommendation should reference canonical knowledge.
+
+Example conceptual structure:
+
+id
+user_id
+assessment_id
+career_id OR academic_direction_id
+match_score
+personalized_reason
+strength_alignment
+interest_alignment
+potential_gaps
+generation_source
+created_at
+
+For Phase 1:
+
+generation_source = DETERMINISTIC
+
+Later phases may use:
+
+generation_source = GEMINI_ENRICHED
+
+
+Once recommendations are generated for a completed assessment, refreshing
+the Results page must NOT regenerate them.
+
+The system should retrieve persisted recommendations.
+
+A new recommendation set should only be generated when:
+
+- A new assessment is completed
+- The user explicitly retakes the assessment
+- The recommendation algorithm version changes and regeneration is
+  intentionally requested
+
+
+===========================================================
+MATCH SCORING
+===========================================================
+
+Create a deterministic, explainable matching system.
+
+Do not use random scores.
+
+Do not use an LLM to invent scores.
+
+Each recommendation score should be traceable to profile dimensions.
+
+Example conceptual calculation:
+
+AI/ML Engineer
+
+Technology Interest       25%
+Mathematics Comfort       20%
+Programming Interest      20%
+Analytical Strength       15%
+Problem Solving           10%
+Innovation Value          10%
+
+Final internal score:
+92/100
+
+Store enough metadata to explain why the recommendation was produced.
+
+The implementation does not need to use these exact weights.
+
+Design appropriate weights based on the existing assessment dimensions.
+
+
+===========================================================
+CAREER KNOWLEDGE SEED DATA
+===========================================================
+
+For the MVP, create a manageable, high-quality seed dataset.
+
+Target approximately:
+
+20–30 careers
+
+covering major areas relevant to:
+
+PCM
+PCB
+PCMB
+Commerce
+Humanities
+Creative
+Technology
+Business
+Healthcare
+
+Examples may include:
+
+Software Engineer
+AI/ML Engineer
+Data Scientist
+Cybersecurity Analyst
+Mechanical Engineer
+Civil Engineer
+Electronics Engineer
+Architect
+Doctor
+Dentist
+Pharmacist
+Biotechnologist
+Physiotherapist
+Psychologist
+Chartered Accountant
+Financial Analyst
+Business Analyst
+Marketing Professional
+Entrepreneur
+Lawyer
+Journalist
+UX/UI Designer
+Graphic Designer
+
+Also create relevant course relationships.
+
+IMPORTANT:
+
+Do not fabricate factual salary data.
+
+Salary seed data may remain empty in Phase 1 if reliable verified data is
+not available.
+
+
+===========================================================
+NEO4J CONSIDERATION
+===========================================================
+
+The project already includes Neo4j.
+
+Do not migrate canonical relational data away from PostgreSQL unnecessarily.
+
+PostgreSQL remains the primary source of truth.
+
+Evaluate Neo4j for relationships such as:
+
+Career → REQUIRES_SKILL → Skill
+Course → LEADS_TO → Career
+Career → RELATED_TO → Career
+Course → REQUIRES → Subject
+
+However:
+
+Do NOT make Phase 1 dependent on Neo4j if this would destabilize the MVP.
+
+Neo4j can become a graph-enhancement layer later.
+
+Document the intended role clearly.
+
+
+===========================================================
+REDIS CONSIDERATION
+===========================================================
+
+Do not introduce Redis merely to claim that Redis is being used.
+
+Evaluate future caching for:
+
+career detail lookups
+course detail lookups
+frequently accessed knowledge records
+
+PostgreSQL remains the source of truth.
+
+Redis must never become the only persistence layer.
+
+
+===========================================================
+API CONTRACT
+===========================================================
+
+Create clean MS1 endpoints or extend existing endpoints for:
+
+GET career details
+GET course details
+GET persisted user recommendations
+
+Recommendation generation should happen only after valid assessment
+completion.
+
+MS1 must continue to enforce authentication and user ownership.
+
+MS2 should own:
+
+assessment intelligence
+student profile transformation
+matching/scoring logic
+
+MS1 should own:
+
+authentication
+PostgreSQL persistence
+API exposure
+user ownership
+recommendation persistence
+
+If the existing architecture suggests a cleaner responsibility split,
+document it before changing anything.
+
+
+===========================================================
+GEMINI — DO NOT IMPLEMENT IN PHASE 1
+===========================================================
+
+Do not add Gemini recommendation generation yet.
+
+Leave a clean integration point for Phase 2.
+
+Future pipeline:
+
+Deterministic candidates
+        ↓
+Top recommendations
+        ↓
+Gemini personalization
+        ↓
+Schema validation
+        ↓
+Persist personalized explanation
+
+Gemini will later be used for:
+
+- Personalized explanation
+- Why the recommendation fits the specific student
+- Strength alignment
+- Potential improvement areas
+- Personalized roadmap generation
+
+Gemini will NOT be used for:
+
+- Static career descriptions
+- Static course descriptions
+- Eligibility enforcement
+- Salary generation
+- Match score generation
+
+
+===========================================================
+DATA INTEGRITY
+===========================================================
+
+Do not insert mock user-specific recommendations.
+
+Do not insert fake assessment answers.
+
+Do not insert fake salary values.
+
+Do not modify existing user data.
+
+Seed only canonical career/course/skill knowledge.
+
+Use idempotent seed logic where possible so running the seed command twice
+does not create duplicates.
+
+
+===========================================================
+TESTING REQUIREMENTS
+===========================================================
+
+Add automated tests.
+
+At minimum verify:
+
+1. Class 10 profile transformation uses all required answers.
+2. Class 12 current stream is preserved.
+3. Same answers produce same deterministic score.
+4. Clearly ineligible courses are filtered.
+5. PCB-only eligibility rules do not leak into Commerce recommendations.
+6. Commerce-without-Maths restrictions work where required.
+7. Recommendations cannot generate before assessment completion.
+8. Persisted recommendations are reused.
+9. Duplicate recommendation generation does not create duplicate records.
+10. Canonical career records are shared between different users.
+11. Match scores can differ for the same career across different users.
+
+
+===========================================================
+VERIFICATION
+===========================================================
+
+After implementation:
+
+Run MS1 build.
+Run MS2 tests.
+Run frontend build ONLY to ensure API contract compatibility.
+
+Do not redesign frontend.
+
+Provide:
+
+1. Database tables created/modified.
+2. Migration or db:push command required.
+3. Seed command.
+4. Test commands.
+5. Example Class 10 recommendation flow.
+6. Example Class 12 recommendation flow.
+7. API endpoints created/modified.
+8. Files changed.
+9. Any known limitations.
+10. Exact recommended next phase.
+
+
+===========================================================
+SCOPE PROTECTION
+===========================================================
+
+DO NOT:
+
+- Redesign frontend
+- Change Login/Register UI
+- Change Dashboard UI
+- Rewrite working assessment questions unnecessarily
+- Remove LangGraph
+- Break assessment restoration
+- Remove question idempotency
+- Introduce Gemini yet
+- Generate fake salary data
+- Generate random match scores
+- Store duplicate career information per user
+- Replace PostgreSQL with Neo4j
+- Make Redis mandatory for core functionality
+- Begin AWS deployment in this phase
+
+
+===========================================================
+DEFINITION OF DONE
+===========================================================
+
+Phase 1 is complete when:
+
+1. Canonical careers exist in PostgreSQL.
+2. Canonical courses exist in PostgreSQL.
+3. Career-course relationships exist.
+4. Eligibility rules exist.
+5. Skills and career-skill relationships exist.
+6. Completed assessments can produce structured student profiles.
+7. Class 10 produces academic-direction recommendations.
+8. Class 12 produces eligible course/career recommendations.
+9. Match scores are deterministic and explainable.
+10. Recommendations are persisted per assessment/user.
+11. Two users can reference the same career with different match scores.
+12. Refreshing Results does not regenerate recommendations.
+13. No Gemini API is required for Phase 1.
+14. Existing assessment functionality remains working.
+15. Automated tests pass.

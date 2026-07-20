@@ -23,7 +23,7 @@ def test_class_10_graph_integrity():
         # Check next pointer
         if "next" in q_data:
             target = q_data["next"]
-            assert target == "end" or target in bank, f"Next pointer '{target}' in {q_id} does not exist in CLASS_10_QUESTIONS"
+            assert target in ["end", "END"] or target in bank, f"Next pointer '{target}' in {q_id} does not exist in CLASS_10_QUESTIONS"
 
 def test_class_12_graph_integrity():
     bank = CLASS_12_QUESTIONS
@@ -42,7 +42,7 @@ def test_class_12_graph_integrity():
         # Check next pointer
         if "next" in q_data:
             target = q_data["next"]
-            assert target == "end" or target in bank, f"Next pointer '{target}' in {q_id} does not exist in CLASS_12_QUESTIONS"
+            assert target in ["end", "END"] or target in bank, f"Next pointer '{target}' in {q_id} does not exist in CLASS_12_QUESTIONS"
 
 
 if __name__ == "__main__":
