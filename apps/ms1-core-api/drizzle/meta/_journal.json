@@ -29,6 +29,13 @@
       "when": 1784470527029,
       "tag": "0003_nasty_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784520888048,
+      "tag": "0004_sharp_black_cat",
+      "breakpoints": true
     }
   ]
 }

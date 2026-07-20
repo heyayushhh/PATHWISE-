@@ -6,6 +6,7 @@ import { authRoutes } from "../features/authentication/routes";
 import assessmentRoutes from "../features/assessment/assessment.routes";
 import { knowledgeRouter } from "../features/knowledge/knowledge.routes";
 import exploreRoutes from "../features/explore/explore.routes";
+import roadmapRoutes from "../features/roadmap/roadmap.routes";
 
 const router = Router();
 
@@ -20,5 +21,8 @@ router.use("/assessment", authenticate, assessmentRoutes);
 
 // Protected explore routes (authentication is inside the router)
 router.use("/explore", exploreRoutes);
+
+// Protected roadmap routes (authentication is inside the router)
+router.use("/roadmap", roadmapRoutes);
 
 export default router;
