@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { getDynamicAssessmentResult } from "@/services/assessment";
@@ -12,19 +12,26 @@ import {
 } from "@/utils";
 import type { CareerRecommendation, DynamicAssessmentResultResponse } from "@/types";
 import { ArrowRight, Award, Briefcase, ChevronRight, GraduationCap, Lightbulb, RefreshCw, Star, Target, Trophy } from "lucide-react";
+import { toast } from "sonner";
+
 
 function normalizeCareer(recommendation: CareerRecommendation) {
-  if ("matchScore" in recommendation) {
+  const isDeterministic = 
+    "recommendation_type" in recommendation || 
+    "type" in recommendation || 
+    "slug" in recommendation;
+    
+  if (!isDeterministic) {
     return {
       id: (recommendation as any).id || "legacy",
       title: recommendation.title,
-      score: recommendation.matchScore ? `${Math.round(recommendation.matchScore)}% Match` : null,
-      reason: recommendation.whyRecommended,
-      skills: recommendation.requiredSkills,
+      score: (recommendation as any).matchScore ? `${Math.round((recommendation as any).matchScore)}% Match` : null,
+      reason: (recommendation as any).whyRecommended,
+      skills: (recommendation as any).requiredSkills || [],
       strengths: [],
       nextSteps: "",
-      salary: recommendation.salaryRange || null,
-      demand: recommendation.futureDemand || null,
+      salary: (recommendation as any).salaryRange || null,
+      demand: (recommendation as any).futureDemand || null,
       isTarget: false,
       type: "legacy",
     };
@@ -32,21 +39,23 @@ function normalizeCareer(recommendation: CareerRecommendation) {
 
   return {
     id: recommendation.id,
-    title: recommendation.title || recommendation.career_name,
-    score: recommendation.match_score ? `${recommendation.match_score}% Match` : (recommendation.confidence ? `${Math.round(recommendation.confidence * 100)}% Match` : null),
-    reason: recommendation.personalized_reason || recommendation.why_suitable,
-    skills: recommendation.required_skills || [],
-    strengths: recommendation.strengths || [],
-    nextSteps: recommendation.next_steps || "",
+    title: recommendation.title || (recommendation as any).career_name,
+    score: (recommendation as any).match_score ? `${(recommendation as any).match_score}% Match` : ((recommendation as any).confidence ? `${Math.round((recommendation as any).confidence * 100)}% Match` : null),
+    reason: (recommendation as any).personalized_reason || (recommendation as any).why_suitable,
+    skills: (recommendation as any).required_skills || [],
+    strengths: (recommendation as any).strengths || [],
+    nextSteps: (recommendation as any).next_steps || "",
     salary: null,
     demand: null,
-    isTarget: recommendation.is_target || false,
-    type: recommendation.recommendation_type || recommendation.type,
+    isTarget: (recommendation as any).is_target || false,
+    type: (recommendation as any).recommendation_type || (recommendation as any).type,
+    slug: (recommendation as any).slug,
   };
 }
 
 export default function ResultsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [result, setResult] = useState<DynamicAssessmentResultResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -54,6 +63,28 @@ export default function ResultsPage() {
   const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
   const [assessmentState, setAssessmentState] = useState<"not_started" | "in_progress" | "error">("not_started");
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [compareList, setCompareList] = useState<{ id: string; slug: string; type: string; title: string }[]>([]);
+
+  const handleCompareClick = (career: { id: string; slug: string; type: string; title: string }) => {
+    if (compareList.length === 0) {
+      setCompareList([career]);
+      toast.success(`Selected "${career.title}" for comparison. Select another ${career.type === "ACADEMIC_DIRECTION" ? "Academic Path" : career.type.toLowerCase()} to compare.`);
+    } else {
+      const first = compareList[0];
+      if (first.type !== career.type) {
+        toast.error(`You can only compare items of the same type. Selected: ${first.title} (${first.type}).`);
+        return;
+      }
+      if (first.slug === career.slug) {
+        setCompareList([]);
+        toast.info("Comparison cleared.");
+        return;
+      }
+      const typeParam = career.type === 'ACADEMIC_DIRECTION' ? 'path' : career.type.toLowerCase();
+      router.push(`/dashboard/explore/compare?type=${typeParam}&slugs=${first.slug},${career.slug}`);
+    }
+  };
+
 
   useEffect(() => {
     const snapshot = readAssessmentSnapshot();
@@ -257,7 +288,19 @@ export default function ResultsPage() {
         )}
 
         {/* Other Matches List */}
+        {compareList.length > 0 && (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <span className="font-semibold text-primary">Comparison Mode:</span>
+              <span>Selected <strong>{compareList[0].title}</strong>. Click another {compareList[0].type === "ACADEMIC_DIRECTION" ? "Academic Path" : compareList[0].type.toLowerCase()} to compare.</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setCompareList([])} className="text-xs h-8 px-3 font-semibold text-muted-foreground hover:text-foreground">
+              Clear Selection
+            </Button>
+          </div>
+        )}
         <div className="space-y-4">
+
           {normalizedCareers.map((career) => (
             <Card key={career.title} className="p-6 rounded-3xl border border-border shadow-sm bg-card hover:border-primary/30 transition-all">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -287,8 +330,29 @@ export default function ResultsPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" className="font-bold px-4">View</Button>
-                  <Button variant="ghost" className="font-bold px-4">Compare</Button>
+                  {career.type === "ACADEMIC_DIRECTION" ? (
+                    <Link href={`/dashboard/explore/path/${career.slug}?sessionId=${resolvedSessionId}`}>
+                      <Button variant="ghost" className="font-bold px-4">View</Button>
+                    </Link>
+                  ) : career.type === "COURSE" ? (
+                    <Link href={`/dashboard/explore/course/${career.slug}?sessionId=${resolvedSessionId}`}>
+                      <Button variant="ghost" className="font-bold px-4">View</Button>
+                    </Link>
+                  ) : career.type === "CAREER" ? (
+                    <Link href={`/dashboard/explore/career/${career.slug}?sessionId=${resolvedSessionId}`}>
+                      <Button variant="ghost" className="font-bold px-4">View</Button>
+                    </Link>
+                  ) : (
+                    <Button variant="ghost" className="font-bold px-4">View</Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    className={`font-bold px-4 ${compareList.some(item => item.slug === career.slug) ? "text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20" : ""}`}
+                    onClick={() => handleCompareClick({ id: career.id, slug: career.slug, type: career.type, title: career.title })}
+                  >
+                    {compareList.some(item => item.slug === career.slug) ? "Selected" : "Compare"}
+                  </Button>
+
                   <Button 
                     variant="ghost" 
                     size="sm" 

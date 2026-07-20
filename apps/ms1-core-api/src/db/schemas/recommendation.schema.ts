@@ -7,6 +7,7 @@ import {
   jsonb,
   integer,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./user.schema";
@@ -60,3 +61,23 @@ export const userRecommendations = pgTable("user_recommendations", {
   isTarget: boolean("is_target").default(false), // true if this is the user's selected/starred target
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const personalizedInsights = pgTable("personalized_insights", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  assessmentSessionId: uuid("assessment_session_id").references(() => assessmentSessions.id).notNull(),
+  recommendationId: uuid("recommendation_id").references(() => userRecommendations.id, { onDelete: 'cascade' }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(), // ACADEMIC_DIRECTION, COURSE, CAREER
+  entityId: uuid("entity_id").notNull(),
+  insightType: varchar("insight_type", { length: 50 }).notNull(), // WHY_IT_FITS
+  contentJson: jsonb("content_json"),
+  model: varchar("model", { length: 50 }),
+  promptVersion: integer("prompt_version"),
+  generationStatus: varchar("generation_status", { length: 50 }).notNull(), // AVAILABLE, GENERATING, FAILED
+  failureReason: text("failure_reason"),
+  generatedAt: timestamp("generated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  unq: unique().on(t.assessmentSessionId, t.recommendationId, t.insightType, t.promptVersion),
+}));

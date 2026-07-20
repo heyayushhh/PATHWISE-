@@ -30,8 +30,19 @@ from app.services.question_generator import (
     validate_assessment_completion,
 )
 from app.services.recommendation_engine import generate_recommendations
+from app.services.scoring_engine import score_candidates_stateless
 
 router = APIRouter(prefix="/assessment", tags=["Assessment"])
+
+
+@router.post("/score")
+async def score_candidates_route(request: ScoreRequest):
+    """Stateless scoring endpoint for MS1 orchestration."""
+    try:
+        scored = score_candidates_stateless(request.profile, request.candidates)
+        return {"recommendations": scored}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def _build_state_payload(user_id: str, assessment_type: str, session_id: str, academic_stage: str) -> AdaptiveAssessmentState:
@@ -78,6 +89,20 @@ def _build_dynamic_answer_payload(state: AdaptiveAssessmentState) -> AssessmentP
         assessmentType=state.get("assessment_type", "career_interest"),
         answers=answers,
     )
+
+
+def _extract_profile(state: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "extracted_interests": state.get("extracted_interests", []),
+        "inferred_strengths": state.get("inferred_strengths", []),
+        "career_values": state.get("career_values", []),
+        "work_preferences": state.get("work_preferences", []),
+        "inferred_traits": state.get("inferred_traits", []),
+        "current_stream": state.get("current_stream"),
+        "confidence_score": state.get("confidence_score", 0.0),
+        "answers": state.get("answers", []),
+    }
+
 
 
 @router.post("/start", response_model=AssessmentStartResponse)
@@ -150,7 +175,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
                 confidence_score=state.get("confidence_score"),
                 progress=100,
                 explanation=state.get("explanation"),
-                profile=state,
+                profile=_extract_profile(state),
             )
         
         cur_q = state.get("current_question") or {}
@@ -206,7 +231,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
             confidence_score=state.get("confidence_score"),
             progress=100,
             explanation=state.get("explanation"),
-            profile=state,
+            profile=_extract_profile(state),
         )
 
     # 4. Generate Next Question
@@ -235,7 +260,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
             confidence_score=state.get("confidence_score"),
             progress=100,
             explanation=state.get("explanation"),
-            profile=state,
+            profile=_extract_profile(state),
         )
 
     question_selector_node(state)
@@ -326,16 +351,7 @@ async def get_result(session_id: str) -> AssessmentResultResponse:
         progress=100,
         explanation=state.get("explanation"),
         answers=state.get("answers", []),
+        profile=_extract_profile(state),
     )
 
-from app.services.scoring_engine import score_candidates_stateless
-
-@router.post("/score")
-async def score_candidates_route(request: ScoreRequest):
-    """Stateless scoring endpoint for MS1 orchestration."""
-    try:
-        scored = score_candidates_stateless(request.profile, request.candidates)
-        return {"recommendations": scored}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 

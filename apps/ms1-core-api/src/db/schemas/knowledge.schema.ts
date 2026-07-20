@@ -7,6 +7,7 @@ import {
   boolean,
   integer,
   numeric,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const academicDirections = pgTable("academic_directions", {
@@ -14,6 +15,11 @@ export const academicDirections = pgTable("academic_directions", {
   slug: varchar("slug", { length: 100 }).unique().notNull(),
   title: varchar("title", { length: 100 }).notNull(),
   description: text("description"),
+  overview: text("overview"),
+  typicalSubjects: jsonb("typical_subjects"),
+  recommendedStrengths: jsonb("recommended_strengths"),
+  suitableInterests: jsonb("suitable_interests"),
+  considerations: jsonb("considerations"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -28,6 +34,10 @@ export const careers = pgTable("careers", {
   careerFamily: varchar("career_family", { length: 100 }),
   industry: varchar("industry", { length: 100 }),
   educationLevel: varchar("education_level", { length: 100 }),
+  typicalResponsibilities: jsonb("typical_responsibilities"),
+  educationPathways: jsonb("education_pathways"),
+  progression: jsonb("progression"),
+  futureOpportunities: jsonb("future_opportunities"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -41,6 +51,10 @@ export const courses = pgTable("courses", {
   description: text("description"),
   durationYears: numeric("duration_years", { precision: 3, scale: 1 }),
   educationLevel: varchar("education_level", { length: 100 }),
+  eligibilityCriteria: jsonb("eligibility_criteria"),
+  entranceExams: jsonb("entrance_exams"),
+  majorSubjects: jsonb("major_subjects"),
+  higherStudyOptions: jsonb("higher_study_options"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -88,4 +102,16 @@ export const careerSalaryRanges = pgTable("career_salary_ranges", {
   maxSalary: integer("max_salary"),
   source: varchar("source", { length: 255 }),
   lastVerifiedAt: timestamp("last_verified_at"),
+});
+
+export const academicDirectionCourses = pgTable("academic_direction_courses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  academicDirectionId: uuid("academic_direction_id").references(() => academicDirections.id).notNull(),
+  courseId: uuid("course_id").references(() => courses.id).notNull(),
+});
+
+export const academicDirectionCareers = pgTable("academic_direction_careers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  academicDirectionId: uuid("academic_direction_id").references(() => academicDirections.id).notNull(),
+  careerId: uuid("career_id").references(() => careers.id).notNull(),
 });

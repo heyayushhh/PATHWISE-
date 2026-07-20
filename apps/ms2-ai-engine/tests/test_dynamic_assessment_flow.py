@@ -37,9 +37,13 @@ def test_dynamic_assessment_flow_uses_ms1_session_id():
     assert payload["session_id"] == session_id
     assert payload["question"]
 
+    q1_id = payload.get("question_id", "start")
     first_answer_response = client.post(
         f"/assessment/{session_id}/answer",
-        json={"answer": "I enjoy coding, algorithms and mathematics"},
+        json={
+            "question_id": q1_id,
+            "answer": "I enjoy coding, algorithms and mathematics"
+        },
     )
 
     assert first_answer_response.status_code == 200, first_answer_response.text
@@ -48,9 +52,13 @@ def test_dynamic_assessment_flow_uses_ms1_session_id():
     assert first_turn["question"]
     assert first_turn["question"] != payload["question"]
 
+    q2_id = first_turn.get("question_id", "next_q")
     second_answer_response = client.post(
         f"/assessment/{session_id}/answer",
-        json={"answer": "I am interested in biology, medicine and helping people"},
+        json={
+            "question_id": q2_id,
+            "answer": "I am interested in biology, medicine and helping people"
+        },
     )
 
     assert second_answer_response.status_code == 200, second_answer_response.text
