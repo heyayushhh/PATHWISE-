@@ -3,137 +3,93 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import { useAuth } from "@/providers/AuthProvider";
-import { getDynamicAssessmentResult } from "@/services/assessment";
 import { readLastAssessmentResultId, readSelectedCareer } from "@/utils";
+import api from "@/lib/axios";
 import { 
-  Calendar, 
-  ChevronRight, 
-  GraduationCap, 
-  Briefcase, 
-  Wrench, 
-  Rocket,
-  CheckCircle2,
-  MapPin,
-  Clock,
-  Trophy,
-  ArrowLeft,
   ArrowRight,
-  Map
+  Map,
+  CheckCircle2,
+  Clock,
+  Loader2
 } from "lucide-react";
-
-interface RoadmapStep {
-  title: string;
-  period: string;
-  description: string;
-  icon: any;
-  items: string[];
-}
-
-const getRoadmapSteps = (stage: string, career: string): RoadmapStep[] => {
-  const isClass10 = stage === "Class 10";
-  
-  return [
-    {
-      title: isClass10 ? "Foundation Stage" : "Preparation Stage",
-      period: "Current - 6 Months",
-      description: isClass10 
-        ? "Explore interests and strengthen foundational subjects." 
-        : "Focus on stream-specific excellence and entrance preparation.",
-      icon: GraduationCap,
-      items: isClass10 
-        ? ["Identify favorite subjects", "Explore hobby-to-career links", "Strengthen Math/Science/English basics"]
-        : ["Master Class 12 syllabus", "Start entrance exam prep", "Identify top colleges/universities"]
-    },
-    {
-      title: isClass10 ? "Stream Selection" : "Admission & Skill Up",
-      period: "6 - 18 Months",
-      description: isClass10 
-        ? "Choose the right stream (Science/Commerce/Arts) for your path." 
-        : "Secure admission and begin building professional foundations.",
-      icon: MapPin,
-      items: isClass10
-        ? ["Consult with career mentors", "Evaluate stream-career alignment", "Select Class 11-12 subjects"]
-        : ["Complete college applications", "Learn foundational tools (Excel/Coding/Design)", "Join student societies"]
-    },
-    {
-      title: "Skill Development",
-      period: "18 - 36 Months",
-      description: `Build core skills required for ${career || "your chosen field"}.`,
-      icon: Wrench,
-      items: [
-        "Take online certifications",
-        "Build a project portfolio",
-        "Participate in workshops/seminars"
-      ]
-    },
-    {
-      title: "Professional Experience",
-      period: "3 - 5 Years",
-      description: "Gain real-world exposure through internships and projects.",
-      icon: Briefcase,
-      items: [
-        "Apply for summer internships",
-        "Network with industry professionals",
-        "Work on live industry projects"
-      ]
-    },
-    {
-      title: "Career Launch",
-      period: "5+ Years",
-      description: `Successfully transition into a ${career || "professional"} role.`,
-      icon: Rocket,
-      items: [
-        "Prepare for campus placements",
-        "Fine-tune your resume/LinkedIn",
-        "Launch your professional career"
-      ]
-    }
-  ];
-};
 
 export default function RoadmapPage() {
   const { profile } = useAuth();
-  const [topCareer, setTopCareer] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [roadmap, setRoadmap] = useState<any>(null);
   const [lastResultId, setLastResultId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const fetchRoadmap = async (sessionId: string, retry = false) => {
+    try {
+      if (retry) {
+        setIsGenerating(true);
+        setError(null);
+      }
+      
+      const url = retry 
+        ? `/roadmap/${sessionId}/retry`
+        : `/roadmap/${sessionId}`;
+        
+      const res = await api.request({
+        url,
+        method: retry ? "POST" : "GET",
+      });
+      
+      const data = res.data;
+      
+      setRoadmap(data.roadmap);
+      
+      if (data.roadmap?.generationStatus === "GENERATING") {
+        setIsGenerating(true);
+        // Poll every 3 seconds if still generating
+        setTimeout(() => fetchRoadmap(sessionId), 3000);
+      } else {
+        setIsGenerating(false);
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      if (err.response?.status === 404) {
+        setRoadmap(null);
+      } else {
+        setError(err.response?.data?.message || err.response?.data?.error || err.message || "Failed to load roadmap");
+      }
+      setIsGenerating(false);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchLatestResult = async () => {
-      const latestId = readLastAssessmentResultId();
-      setLastResultId(latestId);
-      const starredCareer = readSelectedCareer();
-      
-      if (starredCareer) {
-        setTopCareer(starredCareer);
-      } else {
-        setTopCareer("");
-      }
+    const latestId = readLastAssessmentResultId();
+    setLastResultId(latestId);
+    
+    if (latestId) {
+      fetchRoadmap(latestId);
+    } else {
       setLoading(false);
-    };
-    fetchLatestResult();
+    }
   }, []);
 
-  const stage = profile?.currentStage || "Class 10";
-  const steps = getRoadmapSteps(stage, topCareer);
-
-  // Dynamic progress calculation: Step 1 is done (100%), Step 2 is 60% in progress, others are 0%.
-  const stepProgressions = [100, 60, 0, 0, 0];
-  const overallProgress = Math.round(
-    stepProgressions.reduce((acc, curr) => acc + curr, 0) / steps.length
-  );
+  const handleRetry = () => {
+    if (lastResultId) {
+      fetchRoadmap(lastResultId, true);
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="text-muted-foreground font-medium">Generating your career roadmap...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground font-medium">Checking roadmap status...</p>
       </div>
     );
   }
 
-  if (!topCareer) {
+  if (!lastResultId || (!roadmap && !loading && !error)) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center space-y-6 animate-fade-in text-foreground px-4">
         <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
@@ -141,7 +97,7 @@ export default function RoadmapPage() {
         </div>
         <h2 className="text-3xl font-extrabold font-display text-foreground">Roadmap Locked</h2>
         <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
-          You haven&apos;t selected a target career yet. Complete the assessment and star a career match to unlock your personalized milestones.
+          You haven&apos;t selected a target career yet. Complete the assessment and star a target to unlock your personalized milestones.
         </p>
         <div className="pt-2">
           <Link href={lastResultId ? `/dashboard/results?sessionId=${lastResultId}` : "/dashboard/assessment"}>
@@ -154,113 +110,155 @@ export default function RoadmapPage() {
     );
   }
 
+  if (isGenerating || roadmap?.generationStatus === "GENERATING") {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center space-y-6">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <div className="text-center">
+          <h2 className="text-2xl font-extrabold font-display text-foreground mb-2">Generating Roadmap</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Our AI is carefully structuring your personalized path based on your assessment profile and selected target. This usually takes 10-20 seconds.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || roadmap?.generationStatus === "FAILED") {
+    return (
+      <div className="mx-auto max-w-xl py-16 text-center space-y-6 text-foreground px-4">
+        <div className="h-16 w-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
+          <Map size={32} />
+        </div>
+        <h2 className="text-3xl font-extrabold font-display text-foreground">Generation Failed</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
+          {error || roadmap?.failureReason || "Something went wrong while generating your roadmap."}
+        </p>
+        <Button onClick={handleRetry} size="lg" className="rounded-xl font-bold shadow-lg">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  const { roadmapJson, targetEntityType } = roadmap;
+
+  if (!roadmapJson) return null;
+
   return (
-    <div className="mx-auto max-w-3xl py-12 px-4 animate-fade-in text-foreground">
+    <div className="mx-auto max-w-4xl py-12 px-4 animate-fade-in text-foreground">
       {/* Header */}
       <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1.5 block">Personalized Roadmap</span>
+          <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1.5 block">
+            Personalized Roadmap
+          </span>
           <h1 className="text-3xl font-extrabold font-display text-foreground tracking-tight sm:text-4xl">
-            {topCareer || "Career Exploration"}
+            {roadmapJson.title || "Your Career Path"}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Structured roadmap steps tailored for a career in {topCareer || "your chosen field"}.
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
+            {roadmapJson.summary}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
           <span className="rounded-lg bg-secondary px-3 py-1.5 text-[10px] font-bold text-foreground border border-border uppercase tracking-wider">
-            {stage}
+            {targetEntityType}
           </span>
         </div>
       </div>
 
-      {/* Progress Summary */}
-      <div className="p-6 rounded-2xl border border-border bg-card shadow-sm mb-12 space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-foreground uppercase tracking-wider">Overall Progress</span>
-          <span className="text-xs font-bold text-primary uppercase tracking-wider">{overallProgress}%</span>
+      {/* Immediate Next Steps */}
+      {roadmapJson.immediateNextSteps && roadmapJson.immediateNextSteps.length > 0 && (
+        <div className="mb-12 p-6 rounded-2xl bg-primary/5 border border-primary/20">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-primary" />
+            Immediate Next Steps
+          </h3>
+          <ul className="space-y-3">
+            {roadmapJson.immediateNextSteps.map((step: string, i: number) => (
+              <li key={i} className="flex items-start gap-3 text-sm text-foreground/90">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>{step}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden border border-border">
-          <div className="h-full bg-primary transition-all duration-500" style={{ width: `${overallProgress}%` }} />
-        </div>
-        <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-          <span>1 of {steps.length} steps completed</span>
-          <span>Est. 4 years remaining</span>
-        </div>
-      </div>
+      )}
 
-      {/* Editorial Timeline */}
-      <div className="relative space-y-12 before:absolute before:inset-y-3 before:left-4 before:w-0.5 before:bg-border">
-        {steps.map((step, index) => {
-          const isDone = index === 0;
-          const isCurrent = index === 1;
-          const isLocked = index > 1;
-
+      {/* Timeline */}
+      <div className="relative space-y-8 before:absolute before:inset-y-3 before:left-4 md:before:left-1/2 md:before:-ml-px before:w-0.5 before:bg-border">
+        {roadmapJson.milestones?.map((milestone: any, index: number) => {
+          const isEven = index % 2 === 0;
           return (
-            <div key={step.title} className="relative pl-12">
-              {/* Timeline Indicator Node */}
-              <div className={`absolute left-0 flex h-8.5 w-8.5 items-center justify-center rounded-full border-2 bg-background text-xs font-bold transition-all ${
-                isDone 
-                  ? "border-primary bg-primary text-primary-foreground" 
-                  : isCurrent 
-                    ? "border-primary text-primary bg-background shadow-[0_0_0_4px_rgba(229,72,77,0.15)]"
-                    : "border-border text-muted-foreground bg-background"
-              }`} style={{ width: "34px", height: "34px" }}>
-                {isDone ? <CheckCircle2 size={16} /> : index + 1}
-              </div>
-
-              {/* Content block */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    Step {index + 1} · {step.period}
-                  </span>
-                  {isDone && (
-                    <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[9px] font-bold text-muted-foreground uppercase border border-border">Done</span>
-                  )}
-                  {isCurrent && (
-                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold text-primary uppercase border border-primary/20">In Progress</span>
-                  )}
-                </div>
-
-                <h3 className="text-xl font-extrabold font-display text-foreground leading-snug">{step.title}</h3>
-                
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
-                  {step.description}
-                </p>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {step.items.map((item) => (
-                    <span key={item} className="rounded-lg border border-border bg-secondary px-2.5 py-1.5 text-[10px] font-bold text-foreground/80 uppercase tracking-tight">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-
-                {isCurrent && (
-                  <div className="pt-3 max-w-md">
-                    <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      <span>Milestone Progress</span>
-                      <span>60%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden border border-border">
-                      <div className="h-full bg-primary w-[60%]" />
-                    </div>
+            <div key={milestone.id || index} className="relative flex flex-col md:flex-row items-start md:items-center">
+              
+              {/* Timeline dot */}
+              <div className="absolute left-4 md:left-1/2 w-4 h-4 rounded-full bg-primary -ml-2 border-4 border-background z-10 top-6 md:top-1/2 md:-translate-y-1/2" />
+              
+              {/* Content - Left side on Desktop */}
+              <div className={`w-full md:w-1/2 pl-12 md:pl-0 ${isEven ? 'md:pr-12 md:text-right' : 'md:hidden'}`}>
+                {isEven && (
+                  <div className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow text-left md:text-right">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">{milestone.stage} • {milestone.timeframe}</span>
+                    <h3 className="text-xl font-bold mb-2">{milestone.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{milestone.description}</p>
+                    {milestone.actions && milestone.actions.length > 0 && (
+                      <div className="space-y-2 mt-4">
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">Key Actions</span>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {milestone.actions.map((action: any, i: number) => (
+                            <li key={i}>• {action.title}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
+
+              {/* Content - Right side on Desktop */}
+              <div className={`w-full md:w-1/2 pl-12 ${!isEven ? 'md:pl-12' : 'hidden md:block'}`}>
+                {!isEven && (
+                  <div className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow text-left">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">{milestone.stage} • {milestone.timeframe}</span>
+                    <h3 className="text-xl font-bold mb-2">{milestone.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{milestone.description}</p>
+                    {milestone.actions && milestone.actions.length > 0 && (
+                      <div className="space-y-2 mt-4">
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">Key Actions</span>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {milestone.actions.map((action: any, i: number) => (
+                            <li key={i}>• {action.title}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {isEven && <div className="hidden md:block h-full" />}
+              </div>
+
+              {/* Mobile View Content (when isEven is true, mobile still needs to see it) */}
+              <div className={`w-full pl-12 block md:hidden ${isEven ? '' : 'hidden'}`}>
+                <div className="bg-card border border-border rounded-xl p-6 shadow-sm mt-4 text-left">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">{milestone.stage} • {milestone.timeframe}</span>
+                  <h3 className="text-xl font-bold mb-2">{milestone.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{milestone.description}</p>
+                  {milestone.actions && milestone.actions.length > 0 && (
+                    <div className="space-y-2 mt-4">
+                      <span className="text-xs font-bold text-foreground uppercase tracking-wider">Key Actions</span>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        {milestone.actions.map((action: any, i: number) => (
+                          <li key={i}>• {action.title}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
-      </div>
-
-      {/* Footer back button */}
-      <div className="mt-16 flex justify-center border-t border-border pt-10">
-        <Link href="/dashboard">
-          <Button variant="outline" className="rounded-xl px-8 font-bold">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-          </Button>
-        </Link>
       </div>
     </div>
   );
