@@ -37,6 +37,10 @@ COPY --from=deps /app/packages/shared-utils/node_modules ./packages/shared-utils
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 COPY . .
 
+# NEXT_PUBLIC_ vars must be present at build time (Next.js inlines them)
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+
 RUN pnpm --filter @pathwise/frontend build
 
 FROM base AS runner

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { registerUser, loginUser, getCurrentUser, updateStage } from "../services";
+import { registerUser, loginUser, googleAuthUser, getCurrentUser, updateStage } from "../services";
 import { registerSchema, loginSchema } from "../validators";
 import { createApiResponse } from "../utils";
 import type { AuthenticatedRequest } from "../types";
@@ -153,6 +153,45 @@ export async function login(req: Request, res: Response) {
       return res
         .status(resolveAuthStatusCode(err))
         .json(createApiResponse(false, resolveAuthErrorMessage(err, "Login failed")));
+    }
+
+    return res.status(500).json(createApiResponse(false, "Internal server error"));
+  }
+}
+
+export async function googleAuth(req: Request, res: Response) {
+  try {
+    const { credential } = req.body;
+    if (!credential || typeof credential !== "string") {
+      return res.status(400).json(createApiResponse(false, "Google credential is required"));
+    }
+
+    const { user, profile, accessToken, refreshToken, isNewUser } =
+      await googleAuthUser(credential);
+
+    return res.status(200).json(
+      createApiResponse(true, "Google authentication successful", {
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          role: user.role,
+        },
+        profile,
+        accessToken,
+        refreshToken,
+        isNewUser,
+      }),
+    );
+  } catch (err) {
+    console.error(err);
+
+    if (err instanceof Error) {
+      return res
+        .status(resolveAuthStatusCode(err, 401))
+        .json(createApiResponse(false, resolveAuthErrorMessage(err, "Google authentication failed")));
     }
 
     return res.status(500).json(createApiResponse(false, "Internal server error"));

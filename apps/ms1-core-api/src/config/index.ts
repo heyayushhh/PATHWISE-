@@ -11,6 +11,7 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
   AI_ENGINE_URL: z.string().url().default("http://127.0.0.1:3002"),
+  GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -32,4 +33,5 @@ export const config = {
     refreshExpiresIn: parsedEnv.data.JWT_REFRESH_EXPIRES_IN,
   },
   aiEngineUrl: parsedEnv.data.AI_ENGINE_URL,
+  googleClientId: parsedEnv.data.GOOGLE_CLIENT_ID,
 };
