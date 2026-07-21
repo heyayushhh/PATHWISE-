@@ -24,8 +24,7 @@ export const users = pgTable("users", {
     .unique()
     .notNull(),
 
-  passwordHash: text("password_hash")
-    .notNull(),
+  passwordHash: text("password_hash"),
 
   phoneNumber: varchar("phone_number", {
     length: 15,

@@ -6,10 +6,11 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { register as registerUser } from "@/services/auth";
+import { register as registerUser, googleAuth } from "@/services/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
 import Logo from "@/components/ui/Logo";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -47,6 +48,7 @@ export default function RegisterPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const onSubmit = async (data: RegisterFormData) => {
     setApiError(null);
@@ -60,6 +62,29 @@ export default function RegisterPage() {
       }
     } catch (err: unknown) {
       setApiError("Unable to create your account. Please check your inputs and try again.");
+    }
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setApiError(null);
+    setGoogleLoading(true);
+    try {
+      const res = await googleAuth(credential);
+      if (res.success && res.data) {
+        login(res.data.user, res.data.profile, res.data.accessToken, res.data.refreshToken);
+        // New Google users start onboarding; existing users (who happened to click "register") go to dashboard
+        if (res.data.isNewUser) {
+          router.push("/dashboard/onboarding");
+        } else {
+          router.push("/dashboard");
+        }
+      } else {
+        setApiError(res.message || "Google sign-in failed. Please try again.");
+      }
+    } catch (err: unknown) {
+      setApiError("Google sign-in failed. Please try again.");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -247,7 +272,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || googleLoading}
               className="w-full mt-1 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
             >
               {isSubmitting ? (
@@ -260,8 +285,28 @@ export default function RegisterPage() {
               )}
             </button>
           </form>
+
+          {/* OR divider */}
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs font-medium text-muted-foreground tracking-widest uppercase">
+              or
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          {/* Google Sign-Up */}
+          <GoogleSignInButton
+            onCredential={handleGoogleCredential}
+            disabled={isSubmitting || googleLoading}
+          />
+          {googleLoading && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Verifying with Google…
+            </p>
+          )}
         </div>
-        
+
         <p className="mt-8 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-primary hover:text-primary/80 transition-colors">

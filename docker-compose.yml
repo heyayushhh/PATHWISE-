@@ -63,6 +63,7 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       NEO4J_URI: bolt://neo4j:7687
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     ports:
       - "3001:3001"
     depends_on:
@@ -102,7 +103,11 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
     container_name: pathwise-frontend
+    environment:
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
     ports:
       - "3000:3000"
     depends_on:
