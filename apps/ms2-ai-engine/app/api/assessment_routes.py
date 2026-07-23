@@ -166,6 +166,16 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
     if q_id in answered_ids:
         print(f"Idempotency hit: Question '{q_id}' already answered.")
         is_complete = state.get("is_complete", False)
+        if not is_complete:
+            try:
+                validate_assessment_completion(state)
+                is_complete = True
+                state["is_complete"] = True
+                
+                recommendation_node(state)
+                save_state(session_id, state)
+            except Exception as e:
+                print(f"[Idempotency Completion Check] Validation failed: {e}")
         
         if is_complete:
             return AssessmentTurnResponse(
@@ -187,7 +197,7 @@ async def submit_answer(session_id: str, request: AssessmentAnswerRequest, backg
             status="continue",
             session_id=session_id,
             question=cur_q.get("question"),
-            question_id=cur_q.get("id"),
+            question_id=cur_q.get("id") or cur_q.get("question_id"),
             options=cur_q.get("options"),
             category=cur_q.get("category"),
             confidence_score=state.get("confidence_score"),
@@ -308,7 +318,8 @@ async def get_status(session_id: str):
         "question_number": q_num,
         "total_questions": total_qs,
         "is_complete": bool(state.get("is_complete", False)),
-        "recommendation_status": state.get("recommendation_status", "NOT_STARTED")
+        "recommendation_status": state.get("recommendation_status", "NOT_STARTED"),
+        "answers": state.get("answers", []),
     }
 
 

@@ -593,6 +593,57 @@ Rules:
 """
 
 
+def is_uncertain_answer(answer: str) -> bool:
+    """Classify if the certainty question answer indicates uncertainty, normalizing dashes and whitespace."""
+    if not answer:
+        return False
+    normalized = answer.strip().replace("—", "-").replace("–", "-").replace("--", "-")
+    normalized = " ".join(normalized.split())
+    normalized = normalized.lower()
+    uncertain_patterns = [
+        "somewhat clear - i have a few options but need guidance",
+        "not clear at all - i am completely open to exploration",
+        "somewhat clear",
+        "uncertain / exploring",
+        "somewhat certain",
+        "completely lost",
+        "uncertain",
+        "not clear at all"
+    ]
+    for pattern in uncertain_patterns:
+        if pattern in normalized:
+            return True
+    return False
+
+
+def get_remaining_distance(bank: dict[str, Any], start_q_id: str) -> int:
+    """BFS to find the shortest path length from start_q_id to 'certainty'."""
+    if not start_q_id or start_q_id == "certainty":
+        return 0
+    import collections
+    queue = collections.deque([(start_q_id, 0)])
+    visited = {start_q_id}
+    while queue:
+        curr, dist = queue.popleft()
+        if curr == "certainty":
+            return dist
+        q_data = bank.get(curr)
+        if not q_data:
+            continue
+        targets = []
+        if "next" in q_data:
+            targets.append(q_data["next"])
+        if "branches" in q_data:
+            targets.extend(q_data["branches"].values())
+        for t in targets:
+            if t == "END":
+                t = "certainty"
+            if t in bank and t not in visited:
+                visited.add(t)
+                queue.append((t, dist + 1))
+    return 0
+
+
 def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
     """Generate next question based on current stage and previous answers."""
     stage = state.get("academic_stage", "Class 10")
@@ -659,17 +710,7 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
 
     # 5. Handle certainty endpoint (reached end of 10-question bank)
     if next_q_id == "END":
-        # Check if they are uncertain
-        uncertain_options = [
-            "Somewhat clear — I have a few options but need guidance",
-            "Not clear at all — I am completely open to exploration",
-            "Somewhat clear",
-            "Uncertain / Exploring",
-            "Somewhat certain",
-            "Completely lost"
-        ]
-        
-        is_uncertain = last_answer in uncertain_options
+        is_uncertain = is_uncertain_answer(last_answer)
         
         if is_uncertain:
             # We try to use Gemini if configured
@@ -729,38 +770,43 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_total_questions(state: dict[str, Any]) -> int:
-    """Dynamically determine the total questions for the active path.
-
-    Class 10 (adaptive branching): shortest path = 7 Qs, longest = 8 Qs.
-      We advertise 10 to the frontend so the counter always reads
-      'Question X of 10' which is familiar and prevents the UI from
-      showing a completed bar too early on short paths.
-      Uncertain users who receive the clarification question get 11.
-
-    Class 12 (stream branching): 1 stream Q + 3 stream-specific Qs
-      + 5 common tail Qs = 9 questions total (certain users).
-      Uncertain users get an extra clarification question -> 10.
-    """
+    """Dynamically determine the total questions for the active path."""
     stage = state.get("academic_stage", "Class 10")
-    base = 9 if stage == "Class 12" else 10
-
-    # Check whether the certainty question was answered with an uncertain option
-    uncertain_options = [
-        "Somewhat clear — I have a few options but need guidance",
-        "Not clear at all — I am completely open to exploration",
-        "Somewhat clear",
-        "Uncertain / Exploring",
-        "Somewhat certain",
-        "Completely lost"
-    ]
     answers = state.get("answers", [])
+    
+    # 1. Determine base path length
+    base_length = 7 if stage == "Class 10" else 9
+    
+    # If Class 10 and they went to a science sub-branch, add 1
+    if stage == "Class 10":
+        has_subbranch = False
+        for ans in answers:
+            if ans.get("question_id") == "science_tech" and ans.get("answer") in ["Biology & Healthcare", "Computers & Coding"]:
+                has_subbranch = True
+                break
+        if has_subbranch:
+            base_length = 8
+            
+    # 2. Check if uncertain
+    is_uncertain = False
     for ans in answers:
         if ans.get("question_id") == "certainty":
-            if ans.get("answer") in uncertain_options:
-                return base + 1
+            if is_uncertain_answer(ans.get("answer")):
+                is_uncertain = True
             break
-
-    return base
+            
+    # Also check if current or last question is clarification
+    current_q = state.get("current_question") or {}
+    curr_q_id = current_q.get("id") or current_q.get("question_id")
+    if curr_q_id in ["adaptive_1", "predefined_clarification"]:
+        is_uncertain = True
+    if answers and answers[-1].get("question_id") in ["adaptive_1", "predefined_clarification"]:
+        is_uncertain = True
+        
+    if is_uncertain:
+        return base_length + 1
+        
+    return base_length
 
 
 def validate_question_data(question_data: dict[str, Any]) -> bool:
@@ -789,14 +835,6 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
     """
     Validate that the assessment state meets all completeness criteria.
     Throws a ValueError if validation fails.
-
-    Minimum answer counts (stage-aware):
-      Class 10 (adaptive branching): shortest path = 7 questions.
-        min_answers = 7
-      Class 12 (stream branching):   shortest path = 9 questions.
-        min_answers = 9
-    These minimums are floors only — the real completion check is the
-    terminal question ID (certainty / adaptive_1 / predefined_clarification).
     """
     if not state.get("user_id"):
         raise ValueError("Assessment session does not belong to a valid user")
@@ -828,15 +866,7 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
     if not certainty_answer:
         raise ValueError("Assessment is incomplete. Awaiting certainty question response.")
 
-    uncertain_options = [
-        "Somewhat clear — I have a few options but need guidance",
-        "Not clear at all — I am completely open to exploration",
-        "Somewhat clear",
-        "Uncertain / Exploring",
-        "Somewhat certain",
-        "Completely lost"
-    ]
-    is_uncertain = certainty_answer in uncertain_options
+    is_uncertain = is_uncertain_answer(certainty_answer)
 
     # 3. Terminal question ID check based on certainty
     last_q_id = answers[-1].get("question_id")
