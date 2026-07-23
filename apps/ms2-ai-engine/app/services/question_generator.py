@@ -818,19 +818,29 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
             f"for {stage}."
         )
 
-    expected_total = get_total_questions(state)
-    base_total = 9 if stage == "Class 12" else 10
+    # 2. Find the certainty answer in history to determine if clarification was required
+    certainty_answer = None
+    for ans in answers:
+        if ans.get("question_id") == "certainty":
+            certainty_answer = ans.get("answer")
+            break
 
-    # If uncertain user, one more question is required
-    if expected_total == base_total + 1 and len(answers) < base_total + 1:
-        raise ValueError(
-            "Assessment is incomplete. "
-            "Awaiting adaptive clarification question response."
-        )
+    if not certainty_answer:
+        raise ValueError("Assessment is incomplete. Awaiting certainty question response.")
 
-    # Terminal question ID check
+    uncertain_options = [
+        "Somewhat clear — I have a few options but need guidance",
+        "Not clear at all — I am completely open to exploration",
+        "Somewhat clear",
+        "Uncertain / Exploring",
+        "Somewhat certain",
+        "Completely lost"
+    ]
+    is_uncertain = certainty_answer in uncertain_options
+
+    # 3. Terminal question ID check based on certainty
     last_q_id = answers[-1].get("question_id")
-    if expected_total == base_total:
+    if not is_uncertain:
         # Certain users must end on the certainty question
         if last_q_id != "certainty":
             raise ValueError(
@@ -841,8 +851,8 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
         # Uncertain users must end on the clarification question
         if last_q_id not in ["adaptive_1", "predefined_clarification"]:
             raise ValueError(
-                "Assessment has not answered the clarification question. "
-                f"Last answered: '{last_q_id}'."
+                "Assessment is incomplete. "
+                "Awaiting adaptive clarification question response."
             )
 
     # Validate all answers are non-empty
