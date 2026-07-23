@@ -290,6 +290,29 @@ async function seed() {
   if (psychId && baPsychId) await db.insert(careerCourses).values({ careerId: psychId, courseId: baPsychId });
   if (gdId && bdesId) await db.insert(careerCourses).values({ careerId: gdId, courseId: bdesId });
 
+  // Rel: Career -> Skills
+  const getSkiId = async (slug: string) => (await db.query.skills.findFirst({ where: eq(skills.slug, slug) }))?.id;
+  const progSkillId = await getSkiId("programming");
+  const mathSkillId = await getSkiId("mathematics");
+  const analSkillId = await getSkiId("analytical-thinking");
+  const commSkillId = await getSkiId("communication");
+  const creaSkillId = await getSkiId("creativity");
+  const biolSkillId = await getSkiId("biology");
+
+  if (sweId && progSkillId) await db.insert(careerSkills).values({ careerId: sweId, skillId: progSkillId, importanceWeight: "0.95" });
+  if (sweId && analSkillId) await db.insert(careerSkills).values({ careerId: sweId, skillId: analSkillId, importanceWeight: "0.90" });
+  if (aimlId && progSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: progSkillId, importanceWeight: "0.95" });
+  if (aimlId && mathSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: mathSkillId, importanceWeight: "0.95" });
+  if (aimlId && analSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: analSkillId, importanceWeight: "0.90" });
+  if (docId && biolSkillId) await db.insert(careerSkills).values({ careerId: docId, skillId: biolSkillId, importanceWeight: "0.95" });
+  if (docId && commSkillId) await db.insert(careerSkills).values({ careerId: docId, skillId: commSkillId, importanceWeight: "0.90" });
+  if (caId && mathSkillId) await db.insert(careerSkills).values({ careerId: caId, skillId: mathSkillId, importanceWeight: "0.90" });
+  if (caId && analSkillId) await db.insert(careerSkills).values({ careerId: caId, skillId: analSkillId, importanceWeight: "0.85" });
+  if (psychId && commSkillId) await db.insert(careerSkills).values({ careerId: psychId, skillId: commSkillId, importanceWeight: "0.95" });
+  if (psychId && analSkillId) await db.insert(careerSkills).values({ careerId: psychId, skillId: analSkillId, importanceWeight: "0.80" });
+  if (gdId && creaSkillId) await db.insert(careerSkills).values({ careerId: gdId, skillId: creaSkillId, importanceWeight: "0.95" });
+  if (gdId && commSkillId) await db.insert(careerSkills).values({ careerId: gdId, skillId: commSkillId, importanceWeight: "0.80" });
+
   console.log("Canonical knowledge seeded successfully!");
 }
 

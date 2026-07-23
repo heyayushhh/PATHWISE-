@@ -1,5 +1,5 @@
 import { db } from "../src/db";
-import { assessmentSessions, studentAssessmentProfiles, recommendationSets, userRecommendations } from "../src/db/schemas";
+import { assessmentSessions, studentAssessmentProfiles, recommendationSets, userRecommendations, profiles } from "../src/db/schemas";
 import { eq } from "drizzle-orm";
 
 const API_URL = "http://localhost:3001/api";
@@ -37,12 +37,10 @@ async function runE2ETests() {
   if (!regRes10.ok) throw new Error("Registration failed for Class 10 user: " + JSON.stringify(regData10));
   const token10 = regData10.data?.accessToken;
 
-  // Set Profile stage to Class 10
-  await fetch(`${API_URL}/auth/profile`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token10}` },
-    body: JSON.stringify({ currentStage: "Class 10" }),
-  });
+  // Set Profile stage to Class 10 via DB directly
+  await db.update(profiles)
+    .set({ currentStage: "Class 10" })
+    .where(eq(profiles.userId, regData10.data.user.id));
 
   // Start Assessment
   const startRes10 = await fetch(`${API_URL}/assessment/dynamic/start`, {
@@ -55,8 +53,8 @@ async function runE2ETests() {
   const sessionId10 = startData10.sessionId;
   console.log(`Started Class 10 Dynamic Session: ${sessionId10}`);
 
-  let currentQuestion = startData10.nextQuestion;
-  let currentQuestionId = startData10.nextQuestionId;
+  let currentQuestion = startData10.nextQuestion ?? startData10.question;
+  let currentQuestionId = startData10.nextQuestionId ?? startData10.questionId;
   let options = startData10.options;
   let status = startData10.status;
   let turnCount = 1;
@@ -152,12 +150,10 @@ async function runE2ETests() {
   if (!regRes12.ok) throw new Error("Registration failed for Class 12 user: " + JSON.stringify(regData12));
   const token12 = regData12.data?.accessToken;
 
-  // Set Profile stage to Class 12, stream to PCM
-  await fetch(`${API_URL}/auth/profile`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token12}` },
-    body: JSON.stringify({ currentStage: "Class 12", currentStream: "PCM" }),
-  });
+  // Set Profile stage to Class 12, stream to PCM via DB directly
+  await db.update(profiles)
+    .set({ currentStage: "Class 12", currentStream: "PCM" })
+    .where(eq(profiles.userId, regData12.data.user.id));
 
   // Start Assessment
   const startRes12 = await fetch(`${API_URL}/assessment/dynamic/start`, {
@@ -170,8 +166,8 @@ async function runE2ETests() {
   const sessionId12 = startData12.sessionId;
   console.log(`Started Class 12 Dynamic Session: ${sessionId12}`);
 
-  currentQuestion = startData12.nextQuestion;
-  currentQuestionId = startData12.nextQuestionId;
+  currentQuestion = startData12.nextQuestion ?? startData12.question;
+  currentQuestionId = startData12.nextQuestionId ?? startData12.questionId;
   options = startData12.options;
   status = startData12.status;
   turnCount = 1;
