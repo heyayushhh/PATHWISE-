@@ -437,11 +437,10 @@ export async function submitDynamicAnswerController(
     
     if (payload.status === "completed") {
       const userProfile = await db.query.profiles.findFirst({ where: (p, { eq }) => eq(p.userId, userId) });
-      const academicStage = userProfile?.currentStage || "Class 10";
-      const currentStream = (userProfile as any)?.currentStream || undefined;
-
       const ms2Profile = payload.profile || {};
-      
+      const academicStage = session.academicStage || userProfile?.currentStage || "Class 10";
+      const currentStream = ms2Profile.current_stream || (userProfile as any)?.currentStream || undefined;
+
       console.log(`[Assessment Complete]`);
       console.log(`sessionId: ${sessionId}`);
       console.log(`academicStage: ${academicStage}`);
@@ -599,17 +598,18 @@ export async function getDynamicAssessmentResultController(
         if (ms2ResultPayload.profile) {
           console.log(`[Result API] Successfully retrieved profile from MS2.`);
           const userProfile = await db.query.profiles.findFirst({ where: (p, { eq }) => eq(p.userId, userId) });
-          const currentStream = (userProfile as any)?.currentStream || undefined;
+          const ms2Profile = ms2ResultPayload.profile || {};
+          const currentStream = ms2Profile.current_stream || (userProfile as any)?.currentStream || undefined;
           
           const savedProfiles = await recommendationService.saveStudentProfile({
             userId,
             assessmentSessionId: sessionId,
             academicStage,
             currentStream,
-            subjectInterests: ms2ResultPayload.profile.extracted_interests || [],
-            strengths: ms2ResultPayload.profile.inferred_strengths || [],
-            careerValues: ms2ResultPayload.profile.career_values || [],
-            workStyle: ms2ResultPayload.profile.work_preferences || [],
+            subjectInterests: ms2Profile.extracted_interests || [],
+            strengths: ms2Profile.inferred_strengths || [],
+            careerValues: ms2Profile.career_values || [],
+            workStyle: ms2Profile.work_preferences || [],
           });
           profile = savedProfiles[0];
         }
@@ -634,7 +634,7 @@ export async function getDynamicAssessmentResultController(
     };
 
     const userProfile = await db.query.profiles.findFirst({ where: (p, { eq }) => eq(p.userId, userId) });
-    const currentStream = (userProfile as any)?.currentStream || undefined;
+    const currentStream = profile.currentStream || (userProfile as any)?.currentStream || undefined;
 
     try {
       const recoveryResult = await orchestrateRecommendations(

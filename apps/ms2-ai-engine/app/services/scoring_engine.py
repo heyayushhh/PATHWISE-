@@ -104,17 +104,27 @@ def score_candidates_stateless(profile: dict, candidates: list[dict]) -> list[di
     
     selected_subjects = []
     math_comfort = ""
+    raw_answer_strings = []
     for ans in raw_answers:
         cat = ans.get("category", "")
-        opt = ans.get("answer", ans.get("selectedOption", "")).lower()
-        if cat == "subjects":
-            selected_subjects.append(opt)
-        elif cat == "math_comfort":
-            math_comfort = opt
-            
-    # Combine standard extracted arrays for general search
-    all_evidence = set(extracted_interests + inferred_strengths + career_values + work_preferences)
-    
+        opt = ans.get("answer", ans.get("selectedOption", ""))
+        if opt:
+            opt = opt.lower()
+            raw_answer_strings.append(opt)
+            if cat == "subjects":
+                selected_subjects.append(opt)
+            elif cat == "math_comfort":
+                math_comfort = opt
+
+    # Combine standard extracted arrays + raw answer text for general search
+    all_evidence = set(
+        extracted_interests
+        + inferred_strengths
+        + career_values
+        + work_preferences
+        + raw_answer_strings
+    )
+
     # Helper to check if any keyword is a substring of any evidence element
     def has_match(keywords: set[str], evidence: set[str]) -> bool:
         for kw in keywords:
@@ -122,22 +132,98 @@ def score_candidates_stateless(profile: dict, candidates: list[dict]) -> list[di
                 if kw in ev:
                     return True
         return False
-        
+
     scored_results = []
-    
+
     for candidate in candidates:
         slug = candidate.get("slug", "")
         title = candidate.get("title", "")
-        base_score = 60 # Starting score for eligible candidate
+        base_score = 60  # Starting score for every eligible candidate
         score_breakdown = {}
         personalized_reason = "Strong alignment based on assessment profile strengths and interests."
-        
-        # Keyword sets for fallback substring matching
-        tech_keywords = {"coding", "programming", "software", "ai", "data", "computers & technology", "technology", "mathematics", "math", "science & technology", "engineering & technology"}
-        bio_keywords = {"biology", "healthcare", "medicine", "treating patients", "life sciences", "scientific curiosity"}
-        business_keywords = {"business & money", "entrepreneurship", "finance", "management", "marketing", "stock markets"}
-        creative_keywords = {"arts & humanities", "creative work & design", "design", "writing", "creativity", "communication", "media"}
-        
+
+        # ── Keyword sets ────────────────────────────────────────────────────
+        # Each set covers BOTH the legacy answer strings AND the new branching-
+        # bank option strings so that no student answer falls silently through.
+        tech_keywords = {
+            # Legacy / Class 12 strings
+            "coding", "programming", "software", "ai", "data",
+            "computers & technology", "technology", "mathematics", "math",
+            "science & technology", "engineering & technology",
+            # New Class 10 Q1 strings
+            "science & technology",
+            # New Class 10 science_tech branch options
+            "mathematics & problem solving",
+            "computers & coding",
+            "engineering & building things",
+            "research & scientific discovery",
+            # New Class 10 computers_tech_sub options
+            "building apps or websites",
+            "artificial intelligence & data science",
+            "cybersecurity",
+            "game development",
+            "understanding how hardware works",
+            # Class 12 PCM / pcm_area options
+            "engineering & technology", "data science & ai", "defense services",
+            "architecture & design", "pure mathematics & scientific research",
+        }
+        bio_keywords = {
+            # Legacy strings
+            "biology", "healthcare", "medicine", "treating patients",
+            "life sciences", "scientific curiosity",
+            # New Class 10 branch options
+            "biology & healthcare",
+            "treating patients — medicine & surgery",
+            "biological research & genetics",
+            "healthcare technology & medical devices",
+            "environmental & ecological sciences",
+            "pharmacy & drug development",
+            # New Class 10 helping_area options
+            "healthcare & medicine",
+            # Class 12 PCB / pcb_area options
+            "medicine (mbbs/bds)", "biotechnology & research",
+            "psychology & mental health", "healthcare management",
+            "environmental sciences",
+        }
+        business_keywords = {
+            # Legacy strings
+            "business & money", "entrepreneurship", "finance", "management",
+            "marketing", "stock markets", "economics",
+            # New Class 10 Q1 string
+            "business, finance & entrepreneurship",
+            # New Class 10 business_area options
+            "starting my own company (entrepreneurship)",
+            "investing & stock markets",
+            "chartered accountancy / financial auditing",
+            "marketing & consumer behavior",
+            "economics & public policy",
+            # Class 12 commerce_area options
+            "finance & investment banking", "chartered accountancy (ca/cs)",
+            "business management (bba/mba)", "economics & policy",
+            "marketing & advertising",
+        }
+        creative_keywords = {
+            # Legacy strings
+            "arts & humanities", "creative work & design", "design", "writing",
+            "creativity", "communication", "media",
+            # New Class 10 Q1 strings
+            "creative design & media", "arts, humanities & social sciences",
+            # New Class 10 creative_area options
+            "graphic design or ui/ux design",
+            "filmmaking & video production",
+            "music & sound production",
+            "creative writing & journalism",
+            "animation & visual effects",
+            "architecture & interior design",
+            # New Class 10 arts_area options
+            "law & legal studies", "history, politics & civics",
+            "sociology & anthropology", "languages & literature",
+            "philosophy & ethics",
+            # Class 12 arts branch options
+            "law & legal studies", "journalism & mass communication",
+            "civil services (upsc)", "languages & education",
+        }
+
         # Determine candidate family alignment
         family = candidate.get("careerFamily", "")
         if family is None:

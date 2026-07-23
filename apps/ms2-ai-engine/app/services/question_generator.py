@@ -6,8 +6,17 @@ import os
 from typing import Any
 from app.utils.gemini import call_gemini
 
-# MCQ Question Banks for Class 10
+# ---------------------------------------------------------------------------
+# CLASS 10 ADAPTIVE QUESTION BANK
+# Structure:
+#   Q1 (start) — answer-dependent branching to 7 interest paths
+#   Q2 — interest-specific sub-question (some paths have a Q3 sub-branch)
+#   Shared tail: subjects → strengths → work_style → career_values → certainty
+# Path lengths: 7 questions (shallow) to 8 questions (science sub-branch)
+# Adaptive clarification (Q8 or Q9): optional, triggered only for uncertain users
+# ---------------------------------------------------------------------------
 CLASS_10_QUESTIONS = {
+    # ── Q1: Opening interest gate ──────────────────────────────────────────
     "start": {
         "question": "What kind of activities naturally interest you the most?",
         "options": [
@@ -20,8 +29,155 @@ CLASS_10_QUESTIONS = {
             "I am still exploring everything"
         ],
         "category": "interests",
+        # Each key MUST exactly match one of the strings in "options" above
+        "branches": {
+            "Science & Technology":                 "science_tech",
+            "Business, Finance & Entrepreneurship": "business_finance",
+            "Arts, Humanities & Social Sciences":   "arts_humanities",
+            "Creative Design & Media":              "creative_media",
+            "Sports & Physical Fitness":            "sports_fitness",
+            "Helping People & Social Service":      "helping_people",
+            "I am still exploring everything":      "exploring"
+        }
+    },
+
+    # ── Science & Technology branch ────────────────────────────────────────
+    "science_tech": {
+        "question": "Which area of Science & Technology excites you the most?",
+        "options": [
+            "Mathematics & Problem Solving",
+            "Biology & Healthcare",
+            "Computers & Coding",
+            "Engineering & Building Things",
+            "Research & Scientific Discovery",
+            "I am not sure yet"
+        ],
+        "category": "science_tech_area",
+        "branches": {
+            "Biology & Healthcare": "biology_health",
+            "Computers & Coding":   "computers_tech"
+        },
         "next": "subjects"
     },
+    "computers_tech": {
+        "question": "What would you enjoy doing most with computers?",
+        "options": [
+            "Building apps or websites",
+            "Artificial Intelligence & Data Science",
+            "Cybersecurity",
+            "Game Development",
+            "Understanding how hardware works",
+            "I am not sure yet"
+        ],
+        "category": "computers_tech_sub",
+        "next": "subjects"
+    },
+    "biology_health": {
+        "question": "Which part of Biology & Healthcare interests you most?",
+        "options": [
+            "Treating patients — Medicine & Surgery",
+            "Biological research & genetics",
+            "Healthcare technology & medical devices",
+            "Environmental & ecological sciences",
+            "Pharmacy & drug development",
+            "I am not sure yet"
+        ],
+        "category": "biology_health_sub",
+        "next": "subjects"
+    },
+
+    # ── Business, Finance & Entrepreneurship branch ────────────────────────
+    "business_finance": {
+        "question": "What aspect of Business & Finance interests you most?",
+        "options": [
+            "Starting my own company (Entrepreneurship)",
+            "Investing & stock markets",
+            "Chartered Accountancy / Financial Auditing",
+            "Marketing & consumer behavior",
+            "Economics & public policy",
+            "I am not sure yet"
+        ],
+        "category": "business_area",
+        "next": "subjects"
+    },
+
+    # ── Arts, Humanities & Social Sciences branch ──────────────────────────
+    "arts_humanities": {
+        "question": "Which field in Arts & Humanities appeals to you?",
+        "options": [
+            "Law & Legal Studies",
+            "History, Politics & Civics",
+            "Sociology & Anthropology",
+            "Languages & Literature",
+            "Philosophy & Ethics",
+            "I am not sure yet"
+        ],
+        "category": "arts_area",
+        "next": "subjects"
+    },
+
+    # ── Creative Design & Media branch ────────────────────────────────────
+    "creative_media": {
+        "question": "Which creative field would you like to pursue?",
+        "options": [
+            "Graphic Design or UI/UX Design",
+            "Filmmaking & Video Production",
+            "Music & Sound Production",
+            "Creative Writing & Journalism",
+            "Animation & Visual Effects",
+            "Architecture & Interior Design",
+            "I am not sure yet"
+        ],
+        "category": "creative_area",
+        "next": "subjects"
+    },
+
+    # ── Sports & Physical Fitness branch ──────────────────────────────────
+    "sports_fitness": {
+        "question": "How do you see sports becoming part of your career?",
+        "options": [
+            "Professional athlete or player",
+            "Coaching & sports training",
+            "Sports management & administration",
+            "Sports medicine & physiotherapy",
+            "Sports journalism & media",
+            "I am not sure yet"
+        ],
+        "category": "sports_area",
+        "next": "subjects"
+    },
+
+    # ── Helping People & Social Service branch ────────────────────────────
+    "helping_people": {
+        "question": "In what way would you most like to help people?",
+        "options": [
+            "Healthcare & medicine",
+            "Teaching & education",
+            "Social work & community service",
+            "Psychology & counselling",
+            "Non-profit, NGO & development work",
+            "I am not sure yet"
+        ],
+        "category": "helping_area",
+        "next": "subjects"
+    },
+
+    # ── Still Exploring branch ─────────────────────────────────────────────
+    "exploring": {
+        "question": "Since you are still exploring, which of these do you find most enjoyable?",
+        "options": [
+            "Creating art, music, or stories",
+            "Solving puzzles and mathematical problems",
+            "Organising events and leading teams",
+            "Learning about nature and the human body",
+            "Talking to people, debating, and writing",
+            "Building things or fixing gadgets"
+        ],
+        "category": "general_exploration",
+        "next": "subjects"
+    },
+
+    # ── Common Tail (Q3/Q4 onward depending on path depth) ─────────────────
     "subjects": {
         "question": "Which school subjects do you enjoy studying the most?",
         "options": [
@@ -34,47 +190,6 @@ CLASS_10_QUESTIONS = {
             "Art, Music or Craft"
         ],
         "category": "subjects",
-        "next": "math_comfort"
-    },
-    "math_comfort": {
-        "question": "How comfortable are you with Mathematics?",
-        "options": [
-            "Very comfortable — I love solving complex math problems",
-            "Comfortable — I can do it, but prefer not to make it my main focus",
-            "Not comfortable — I prefer to avoid math as much as possible"
-        ],
-        "category": "math_comfort",
-        "next": "science_interest"
-    },
-    "science_interest": {
-        "question": "How interested are you in studying Science in higher classes?",
-        "options": [
-            "Highly interested (both physical sciences and biology)",
-            "Interested in Physics/Chemistry, but not Biology",
-            "Interested in Biology/Life Sciences, but not Physics/Chemistry",
-            "Not interested in Science subjects"
-        ],
-        "category": "science_interest",
-        "next": "commerce_interest"
-    },
-    "commerce_interest": {
-        "question": "Are you interested in business, economics, or starting your own company?",
-        "options": [
-            "Yes, highly interested in finance and business",
-            "Somewhat interested in economics and management",
-            "No, I have no interest in business"
-        ],
-        "category": "commerce_interest",
-        "next": "creative_interest"
-    },
-    "creative_interest": {
-        "question": "How do you feel about creative fields like design, writing, or arts?",
-        "options": [
-            "I love creative work and want to make it my career",
-            "I enjoy creative hobbies but prefer a traditional career",
-            "I am not very interested in creative fields"
-        ],
-        "category": "creative_interest",
         "next": "strengths"
     },
     "strengths": {
@@ -518,10 +633,29 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
 
     next_q_id = None
     if "branches" in last_q_data:
+        # 1. Exact match first
         next_q_id = last_q_data["branches"].get(last_answer)
+        
+        # 2. Case-insensitive exact match
+        if not next_q_id:
+            for opt_str, target in last_q_data["branches"].items():
+                if opt_str.strip().lower() == last_answer.strip().lower():
+                    next_q_id = target
+                    break
+                    
+        # 3. Case-insensitive substring match
+        if not next_q_id:
+            for opt_str, target in last_q_data["branches"].items():
+                if opt_str.lower() in last_answer.lower() or last_answer.lower() in opt_str.lower():
+                    next_q_id = target
+                    break
 
     if not next_q_id:
         next_q_id = last_q_data.get("next")
+
+    # 4. Starting node fallbacks if answer didn't match any option and next is None
+    if not next_q_id and last_q_id == "start":
+        next_q_id = "vocational_interest" if stage == "Class 12" else "exploring"
 
     # 5. Handle certainty endpoint (reached end of 10-question bank)
     if next_q_id == "END":
@@ -595,24 +729,38 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_total_questions(state: dict[str, Any]) -> int:
-    """Dynamically determine the total questions for the active path."""
-    answers = state.get("answers", [])
-    certainty_answer = None
-    for ans in answers:
-        if ans.get("question_id") == "certainty":
-            certainty_answer = ans.get("answer")
-            break
+    """Dynamically determine the total questions for the active path.
 
-    if certainty_answer and certainty_answer in [
+    Class 10 (adaptive branching): shortest path = 7 Qs, longest = 8 Qs.
+      We advertise 10 to the frontend so the counter always reads
+      'Question X of 10' which is familiar and prevents the UI from
+      showing a completed bar too early on short paths.
+      Uncertain users who receive the clarification question get 11.
+
+    Class 12 (stream branching): 1 stream Q + 3 stream-specific Qs
+      + 5 common tail Qs = 9 questions total (certain users).
+      Uncertain users get an extra clarification question -> 10.
+    """
+    stage = state.get("academic_stage", "Class 10")
+    base = 9 if stage == "Class 12" else 10
+
+    # Check whether the certainty question was answered with an uncertain option
+    uncertain_options = [
         "Somewhat clear — I have a few options but need guidance",
         "Not clear at all — I am completely open to exploration",
         "Somewhat clear",
         "Uncertain / Exploring",
         "Somewhat certain",
         "Completely lost"
-    ]:
-        return 11
-    return 10
+    ]
+    answers = state.get("answers", [])
+    for ans in answers:
+        if ans.get("question_id") == "certainty":
+            if ans.get("answer") in uncertain_options:
+                return base + 1
+            break
+
+    return base
 
 
 def validate_question_data(question_data: dict[str, Any]) -> bool:
@@ -641,33 +789,61 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
     """
     Validate that the assessment state meets all completeness criteria.
     Throws a ValueError if validation fails.
+
+    Minimum answer counts (stage-aware):
+      Class 10 (adaptive branching): shortest path = 7 questions.
+        min_answers = 7
+      Class 12 (stream branching):   shortest path = 9 questions.
+        min_answers = 9
+    These minimums are floors only — the real completion check is the
+    terminal question ID (certainty / adaptive_1 / predefined_clarification).
     """
     if not state.get("user_id"):
         raise ValueError("Assessment session does not belong to a valid user")
-    
+
     if not state.get("academic_stage"):
         raise ValueError("Academic stage is missing from the assessment state")
-        
+
     answers = state.get("answers", [])
     if not answers:
         raise ValueError("No answers have been recorded for this assessment")
-        
-    # Check if the final question is answered
-    last_ans = answers[-1]
-    last_q_id = last_ans.get("question_id")
-    
-    expected_total = get_total_questions(state)
-    if len(answers) < 10:
-        raise ValueError(f"Assessment is incomplete. Answered {len(answers)} of minimum 10 questions.")
 
-    if expected_total == 11 and len(answers) < 11:
-        raise ValueError("Assessment is incomplete. Awaiting clarification question response.")
-        
-    # Final question ID must be certainty (for 10 qs) or adaptive_1 / predefined_clarification (for 11 qs)
-    if expected_total == 10 and last_q_id != "certainty":
-        raise ValueError("Assessment has not reached the terminal node.")
-    elif expected_total == 11 and last_q_id not in ["adaptive_1", "predefined_clarification"]:
-        raise ValueError("Assessment has not answered the clarification question.")
+    # Stage-aware minimum answer floor
+    stage = state.get("academic_stage", "Class 10")
+    min_answers = 9 if stage == "Class 12" else 7
+    if len(answers) < min_answers:
+        raise ValueError(
+            f"Assessment is incomplete. "
+            f"Answered {len(answers)} of minimum {min_answers} questions "
+            f"for {stage}."
+        )
+
+    expected_total = get_total_questions(state)
+    base_total = 9 if stage == "Class 12" else 10
+
+    # If uncertain user, one more question is required
+    if expected_total == base_total + 1 and len(answers) < base_total + 1:
+        raise ValueError(
+            "Assessment is incomplete. "
+            "Awaiting adaptive clarification question response."
+        )
+
+    # Terminal question ID check
+    last_q_id = answers[-1].get("question_id")
+    if expected_total == base_total:
+        # Certain users must end on the certainty question
+        if last_q_id != "certainty":
+            raise ValueError(
+                f"Assessment has not reached the terminal node. "
+                f"Last answered: '{last_q_id}'."
+            )
+    else:
+        # Uncertain users must end on the clarification question
+        if last_q_id not in ["adaptive_1", "predefined_clarification"]:
+            raise ValueError(
+                "Assessment has not answered the clarification question. "
+                f"Last answered: '{last_q_id}'."
+            )
 
     # Validate all answers are non-empty
     for idx, ans in enumerate(answers):

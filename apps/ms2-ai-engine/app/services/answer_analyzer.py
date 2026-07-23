@@ -36,7 +36,10 @@ def analyze_answer(question: dict[str, Any], answer: str, state: dict[str, Any])
     career_values = state.get("career_values") or []
     work_preferences = state.get("work_preferences") or []
 
-    if "interest" in category or category in ["pcm_area", "pcb_area"]:
+    if ("interest" in category or 
+        "area" in category or 
+        "sub" in category or 
+        category in ["general_exploration", "pcm_programming", "pcb_patient", "pcb_environment", "pcmb_pref", "pcmb_environment", "commerce_math", "commerce_style", "arts_deep_dive", "arts_style", "vocational_deep_dive", "vocational_style", "stream"]):
         if answer not in existing_interests:
             existing_interests.append(answer)
     elif "style" in category or category == "work_style":
@@ -45,7 +48,7 @@ def analyze_answer(question: dict[str, Any], answer: str, state: dict[str, Any])
     elif "value" in category or category == "career_values":
         if answer not in career_values:
             career_values.append(answer)
-    elif "strength" in category or category == "subject_comfort":
+    elif "strength" in category or category == "subject_comfort" or category == "strengths":
         if answer not in existing_strengths:
             existing_strengths.append(answer)
     else:
