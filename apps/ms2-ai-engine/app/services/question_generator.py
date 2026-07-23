@@ -55,9 +55,12 @@ CLASS_10_QUESTIONS = {
         "category": "science_tech_area",
         "branches": {
             "Biology & Healthcare": "biology_health",
-            "Computers & Coding":   "computers_tech"
-        },
-        "next": "subjects"
+            "Computers & Coding":   "computers_tech",
+            "Mathematics & Problem Solving": "math_problem_sub",
+            "Engineering & Building Things": "engineering_sub",
+            "Research & Scientific Discovery": "scientific_research_sub",
+            "I am not sure yet": "science_general_sub"
+        }
     },
     "computers_tech": {
         "question": "What would you enjoy doing most with computers?",
@@ -85,6 +88,54 @@ CLASS_10_QUESTIONS = {
         "category": "biology_health_sub",
         "next": "subjects"
     },
+    "math_problem_sub": {
+        "question": "What kind of mathematical problems do you enjoy solving most?",
+        "options": [
+            "Logic puzzles & brain teasers",
+            "Algebra & equations",
+            "Statistics & probability",
+            "Geometry & spatial proofs",
+            "I enjoy all types of math problems"
+        ],
+        "category": "science_tech_area",
+        "next": "subjects"
+    },
+    "engineering_sub": {
+        "question": "What would you enjoy building or designing most?",
+        "options": [
+            "Robots & automation systems",
+            "Bridges, buildings & physical structures",
+            "Electronic circuits & microchips",
+            "Aerodynamic vehicles & aircraft",
+            "I am interested in general engineering"
+        ],
+        "category": "science_tech_area",
+        "next": "subjects"
+    },
+    "scientific_research_sub": {
+        "question": "Which domain of scientific inquiry sounds most exciting to you?",
+        "options": [
+            "Space exploration & astronomy",
+            "Quantum physics & atomic structures",
+            "Chemical reactions & material science",
+            "Climate science & renewable energy",
+            "I am open to any scientific field"
+        ],
+        "category": "science_tech_area",
+        "next": "subjects"
+    },
+    "science_general_sub": {
+        "question": "How do you prefer to learn about science?",
+        "options": [
+            "Through hands-on laboratory experiments",
+            "By reading articles and research reports",
+            "By watching science documentaries & videos",
+            "By discussing scientific concepts with others",
+            "I am open to all learning methods"
+        ],
+        "category": "science_tech_area",
+        "next": "subjects"
+    },
 
     # ── Business, Finance & Entrepreneurship branch ────────────────────────
     "business_finance": {
@@ -96,6 +147,18 @@ CLASS_10_QUESTIONS = {
             "Marketing & consumer behavior",
             "Economics & public policy",
             "I am not sure yet"
+        ],
+        "category": "business_area",
+        "next": "business_skills"
+    },
+    "business_skills": {
+        "question": "Which of these business-related skills would you like to develop most?",
+        "options": [
+            "Public speaking & persuasive pitching",
+            "Data analysis & financial planning",
+            "Negotiation & contract analysis",
+            "Managing projects & leading teams",
+            "Marketing strategy & creative branding"
         ],
         "category": "business_area",
         "next": "subjects"
@@ -111,6 +174,18 @@ CLASS_10_QUESTIONS = {
             "Languages & Literature",
             "Philosophy & Ethics",
             "I am not sure yet"
+        ],
+        "category": "arts_area",
+        "next": "humanities_topics"
+    },
+    "humanities_topics": {
+        "question": "Which of these humanities topics interests you most?",
+        "options": [
+            "Understanding human behavior & psychology",
+            "Studying historical events & civilizations",
+            "Analyzing political systems & international relations",
+            "Reading literature & analyzing culture",
+            "Studying legal systems & constitutional law"
         ],
         "category": "arts_area",
         "next": "subjects"
@@ -129,6 +204,18 @@ CLASS_10_QUESTIONS = {
             "I am not sure yet"
         ],
         "category": "creative_area",
+        "next": "creative_tools"
+    },
+    "creative_tools": {
+        "question": "Which creative medium or tool excites you the most?",
+        "options": [
+            "Digital design & photo editing software",
+            "Cameras, video editing & film gear",
+            "Musical instruments & audio recording software",
+            "Pen, paper & creative writing tools",
+            "3D animation & visual effects tools"
+        ],
+        "category": "creative_area",
         "next": "subjects"
     },
 
@@ -142,6 +229,18 @@ CLASS_10_QUESTIONS = {
             "Sports medicine & physiotherapy",
             "Sports journalism & media",
             "I am not sure yet"
+        ],
+        "category": "sports_area",
+        "next": "sports_role"
+    },
+    "sports_role": {
+        "question": "What role in sports and fitness appeals to you most?",
+        "options": [
+            "Competing directly as a player or athlete",
+            "Analyzing team strategies & coaching players",
+            "Managing sports business & marketing events",
+            "Treating sports injuries as a physiotherapist",
+            "Reporting on sports events & writing commentary"
         ],
         "category": "sports_area",
         "next": "subjects"
@@ -159,6 +258,18 @@ CLASS_10_QUESTIONS = {
             "I am not sure yet"
         ],
         "category": "helping_area",
+        "next": "helping_context"
+    },
+    "helping_context": {
+        "question": "In what environment would you prefer to help others?",
+        "options": [
+            "In a clinical setting (hospital or counseling center)",
+            "In a classroom or education center",
+            "In a community NGO or field work environment",
+            "In a corporate office handling employee welfare",
+            "I am open to helping in any setting"
+        ],
+        "category": "helping_area",
         "next": "subjects"
     },
 
@@ -174,10 +285,22 @@ CLASS_10_QUESTIONS = {
             "Building things or fixing gadgets"
         ],
         "category": "general_exploration",
+        "next": "exploration_style"
+    },
+    "exploration_style": {
+        "question": "What is your preferred style of exploring new ideas?",
+        "options": [
+            "Doing DIY projects and hands-on experiments",
+            "Reading books, articles, and research reviews",
+            "Brainstorming with a group and discussing ideas",
+            "Solving puzzles and analytical problems individually",
+            "Creating art, stories, or digital content"
+        ],
+        "category": "general_exploration",
         "next": "subjects"
     },
 
-    # ── Common Tail (Q3/Q4 onward depending on path depth) ─────────────────
+    # ── Common Tail (Q4 onward) ─────────────────
     "subjects": {
         "question": "Which school subjects do you enjoy studying the most?",
         "options": [
@@ -201,6 +324,28 @@ CLASS_10_QUESTIONS = {
             "Practical building, fixing things & hands-on work"
         ],
         "category": "strengths",
+        "next": "certainty"
+    },
+    "learning_style": {
+        "question": "What is your preferred learning style?",
+        "options": [
+            "Visual (diagrams, videos, mind maps)",
+            "Auditory (lectures, discussions, podcasts)",
+            "Hands-on (experiments, building projects, practice)",
+            "Reading/Writing (textbooks, notes, essays)"
+        ],
+        "category": "personality",
+        "next": "work_style"
+    },
+    "work_environment": {
+        "question": "Which work environment sounds most appealing to you?",
+        "options": [
+            "A structured corporate office",
+            "A creative studio or collaborative space",
+            "A laboratory, research center or library",
+            "Working outdoors, traveling or on-field"
+        ],
+        "category": "personality",
         "next": "work_style"
     },
     "work_style": {
@@ -223,7 +368,7 @@ CLASS_10_QUESTIONS = {
             "Constant learning, innovation & intellectual challenge"
         ],
         "category": "career_values",
-        "next": "certainty"
+        "next": "END"
     },
     "certainty": {
         "question": "How clear is your dream career path or stream choice?",
@@ -502,7 +647,7 @@ CLASS_12_QUESTIONS = {
             "Practical & Technical skills"
         ],
         "category": "strengths",
-        "next": "activities"
+        "next": "certainty"
     },
     "activities": {
         "question": "Which activities do you spend your free time on most?",
@@ -537,7 +682,7 @@ CLASS_12_QUESTIONS = {
             "Direct social impact"
         ],
         "category": "career_values",
-        "next": "certainty"
+        "next": "END"
     },
     "certainty": {
         "question": "How certain are you about your career direction?",
@@ -665,53 +810,21 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
     last_q_id = last_answer_data.get("question_id", "start")
     last_answer = last_answer_data.get("answer", "")
 
-    # 3. Handle Adaptive Clarification Question (adaptive_1) completion
-    if last_q_id == "adaptive_1" or last_q_id == "predefined_clarification":
-        state["is_complete"] = True
-        return {}
+    # Check if the user has answered certainty in their history
+    history_certainty_answer = None
+    for ans in history:
+        if ans.get("question_id") == "certainty":
+            history_certainty_answer = ans.get("answer")
+            break
 
-    # 4. Normal Branching logic
-    last_q_data = bank.get(last_q_id)
-    if not last_q_data:
-        # Fallback to start
-        q_data = bank["start"]
-        return {
-            "question": q_data["question"],
-            "options": q_data["options"],
-            "category": q_data["category"],
-            "id": "start"
-        }
+    is_uncertain = False
+    if history_certainty_answer:
+        is_uncertain = is_uncertain_answer(history_certainty_answer)
 
+    # 3. Dynamic tail routing logic
     next_q_id = None
-    if "branches" in last_q_data:
-        # 1. Exact match first
-        next_q_id = last_q_data["branches"].get(last_answer)
-        
-        # 2. Case-insensitive exact match
-        if not next_q_id:
-            for opt_str, target in last_q_data["branches"].items():
-                if opt_str.strip().lower() == last_answer.strip().lower():
-                    next_q_id = target
-                    break
-                    
-        # 3. Case-insensitive substring match
-        if not next_q_id:
-            for opt_str, target in last_q_data["branches"].items():
-                if opt_str.lower() in last_answer.lower() or last_answer.lower() in opt_str.lower():
-                    next_q_id = target
-                    break
-
-    if not next_q_id:
-        next_q_id = last_q_data.get("next")
-
-    # 4. Starting node fallbacks if answer didn't match any option and next is None
-    if not next_q_id and last_q_id == "start":
-        next_q_id = "vocational_interest" if stage == "Class 12" else "exploring"
-
-    # 5. Handle certainty endpoint (reached end of 10-question bank)
-    if next_q_id == "END":
+    if last_q_id == "certainty":
         is_uncertain = is_uncertain_answer(last_answer)
-        
         if is_uncertain:
             # We try to use Gemini if configured
             gemini_key = os.getenv("GEMINI_API_KEY")
@@ -720,7 +833,6 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
                     prompt = build_adaptive_clarification_prompt(history, stage)
                     raw_res = call_gemini(prompt)
                     if raw_res:
-                        # Clean markdown formatting if returned
                         cleaned = raw_res.strip()
                         if cleaned.startswith("```json"):
                             cleaned = cleaned.replace("```json", "").replace("```", "").strip()
@@ -733,25 +845,76 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
                             isinstance(parsed.get("options"), list) and
                             len(parsed["options"]) >= 2
                         ):
-                            return {
+                            state["adaptive_clarification_question"] = {
                                 "question": parsed["question"],
                                 "options": parsed["options"],
                                 "category": parsed.get("category", "adaptive_clarification"),
                                 "id": "adaptive_1"
                             }
+                            next_q_id = "adaptive_1"
                 except Exception as e:
                     print(f"[Adaptive Clarification] Gemini generation failed: {e}")
             
-            # Fallback to predefined clarification question
-            fallback_q = bank["predefined_clarification"]
+            if not next_q_id:
+                next_q_id = "predefined_clarification"
+        else:
+            next_q_id = "learning_style" if stage == "Class 10" else "activities"
+
+    elif last_q_id in ["predefined_clarification", "adaptive_1"]:
+        next_q_id = "learning_style" if stage == "Class 10" else "work_style"
+
+    elif last_q_id == "learning_style":
+        if is_uncertain:
+            next_q_id = "work_style"
+        else:
+            next_q_id = "work_environment"
+
+    elif last_q_id == "work_environment":
+        next_q_id = "work_style"
+
+    elif last_q_id == "activities":
+        next_q_id = "work_style"
+
+    else:
+        # 4. Normal Branching logic from question banks
+        last_q_data = bank.get(last_q_id)
+        if not last_q_data:
+            # Fallback to start
+            q_data = bank["start"]
             return {
-                "question": fallback_q["question"],
-                "options": fallback_q["options"],
-                "category": fallback_q["category"],
-                "id": "predefined_clarification"
+                "question": q_data["question"],
+                "options": q_data["options"],
+                "category": q_data["category"],
+                "id": "start"
             }
-        
-        # Certain user -> complete assessment
+
+        if "branches" in last_q_data:
+            # 1. Exact match first
+            next_q_id = last_q_data["branches"].get(last_answer)
+            
+            # 2. Case-insensitive exact match
+            if not next_q_id:
+                for opt_str, target in last_q_data["branches"].items():
+                    if opt_str.strip().lower() == last_answer.strip().lower():
+                        next_q_id = target
+                        break
+                        
+            # 3. Case-insensitive substring match
+            if not next_q_id:
+                for opt_str, target in last_q_data["branches"].items():
+                    if opt_str.lower() in last_answer.lower() or last_answer.lower() in opt_str.lower():
+                        next_q_id = target
+                        break
+
+        if not next_q_id:
+            next_q_id = last_q_data.get("next")
+
+    # 4. Starting node fallbacks if answer didn't match any option and next is None
+    if not next_q_id and last_q_id == "start":
+        next_q_id = "vocational_interest" if stage == "Class 12" else "exploring"
+
+    # 5. Handle completion
+    if next_q_id == "END":
         state["is_complete"] = True
         return {}
 
@@ -771,42 +934,7 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
 
 def get_total_questions(state: dict[str, Any]) -> int:
     """Dynamically determine the total questions for the active path."""
-    stage = state.get("academic_stage", "Class 10")
-    answers = state.get("answers", [])
-    
-    # 1. Determine base path length
-    base_length = 7 if stage == "Class 10" else 9
-    
-    # If Class 10 and they went to a science sub-branch, add 1
-    if stage == "Class 10":
-        has_subbranch = False
-        for ans in answers:
-            if ans.get("question_id") == "science_tech" and ans.get("answer") in ["Biology & Healthcare", "Computers & Coding"]:
-                has_subbranch = True
-                break
-        if has_subbranch:
-            base_length = 8
-            
-    # 2. Check if uncertain
-    is_uncertain = False
-    for ans in answers:
-        if ans.get("question_id") == "certainty":
-            if is_uncertain_answer(ans.get("answer")):
-                is_uncertain = True
-            break
-            
-    # Also check if current or last question is clarification
-    current_q = state.get("current_question") or {}
-    curr_q_id = current_q.get("id") or current_q.get("question_id")
-    if curr_q_id in ["adaptive_1", "predefined_clarification"]:
-        is_uncertain = True
-    if answers and answers[-1].get("question_id") in ["adaptive_1", "predefined_clarification"]:
-        is_uncertain = True
-        
-    if is_uncertain:
-        return base_length + 1
-        
-    return base_length
+    return 10
 
 
 def validate_question_data(question_data: dict[str, Any]) -> bool:
@@ -846,13 +974,12 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
     if not answers:
         raise ValueError("No answers have been recorded for this assessment")
 
-    # Stage-aware minimum answer floor
+    # Stage-aware answer floor (exactly 10 questions required)
     stage = state.get("academic_stage", "Class 10")
-    min_answers = 9 if stage == "Class 12" else 7
-    if len(answers) < min_answers:
+    if len(answers) < 10:
         raise ValueError(
             f"Assessment is incomplete. "
-            f"Answered {len(answers)} of minimum {min_answers} questions "
+            f"Answered {len(answers)} of exactly 10 questions "
             f"for {stage}."
         )
 
@@ -866,24 +993,13 @@ def validate_assessment_completion(state: dict[str, Any]) -> None:
     if not certainty_answer:
         raise ValueError("Assessment is incomplete. Awaiting certainty question response.")
 
-    is_uncertain = is_uncertain_answer(certainty_answer)
-
-    # 3. Terminal question ID check based on certainty
+    # 3. Terminal question ID check (must end on career_values)
     last_q_id = answers[-1].get("question_id")
-    if not is_uncertain:
-        # Certain users must end on the certainty question
-        if last_q_id != "certainty":
-            raise ValueError(
-                f"Assessment has not reached the terminal node. "
-                f"Last answered: '{last_q_id}'."
-            )
-    else:
-        # Uncertain users must end on the clarification question
-        if last_q_id not in ["adaptive_1", "predefined_clarification"]:
-            raise ValueError(
-                "Assessment is incomplete. "
-                "Awaiting adaptive clarification question response."
-            )
+    if last_q_id != "career_values":
+        raise ValueError(
+            f"Assessment has not reached the terminal node. "
+            f"Last answered: '{last_q_id}'."
+        )
 
     # Validate all answers are non-empty
     for idx, ans in enumerate(answers):

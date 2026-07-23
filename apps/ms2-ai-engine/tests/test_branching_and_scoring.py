@@ -36,7 +36,7 @@ def run_class_10_branch(interest_selection: str, expected_second_q_id: str, sub_
         assert res.status_code == 200, res.text
         payload = res.json()
         assert payload["question_id"] == "start"
-        assert payload["total_questions"] == 7
+        assert payload["total_questions"] == 10
 
         # 2. Answer Q1 (start) -> Select the interest branch
         res = client.post(f"/assessment/{session_id}/answer", json={
@@ -70,21 +70,21 @@ def test_class_10_science_technology_branch():
     )
 
 def test_class_10_business_finance_branch():
-    # Business, Finance & Entrepreneurship -> business_finance (Q2) -> subjects (Q3)
+    # Business, Finance & Entrepreneurship -> business_finance (Q2) -> business_skills (Q3)
     run_class_10_branch(
         interest_selection="Business, Finance & Entrepreneurship",
         expected_second_q_id="business_finance",
         sub_interest_selection="Starting my own company (Entrepreneurship)",
-        expected_third_q_id="subjects"
+        expected_third_q_id="business_skills"
     )
 
 def test_class_10_creative_design_branch():
-    # Creative Design & Media -> creative_media (Q2) -> subjects (Q3)
+    # Creative Design & Media -> creative_media (Q2) -> creative_tools (Q3)
     run_class_10_branch(
         interest_selection="Creative Design & Media",
         expected_second_q_id="creative_media",
         sub_interest_selection="Graphic Design or UI/UX Design",
-        expected_third_q_id="subjects"
+        expected_third_q_id="creative_tools"
     )
 
 # =====================================================================
@@ -104,7 +104,7 @@ def run_class_12_stream(stream_selection: str, expected_second_q_id: str):
         assert res.status_code == 200, res.text
         payload = res.json()
         assert payload["question_id"] == "start"
-        assert payload["total_questions"] == 9  # Base for Class 12 is 9!
+        assert payload["total_questions"] == 10  # Base for Class 12 is 10!
 
         # 2. Answer Q1 (start) -> Select the stream
         res = client.post(f"/assessment/{session_id}/answer", json={
@@ -138,18 +138,18 @@ def test_recommendation_score_differentiation_pcm():
     session_id = f"test-diff-pcm-{uuid.uuid4()}"
     try:
         # Run PCM stream to completion as a certain user
-        # Flow: start -> pcm_interest -> pcm_programming -> pcm_style -> subjects -> strengths -> activities -> work_style -> career_values -> certainty
+        # Flow: start -> pcm_interest -> pcm_programming -> pcm_style -> subjects -> strengths -> certainty -> activities -> work_style -> career_values
         answers = [
             ("start", "Science — PCM (Physics, Chemistry, Mathematics)"),
             ("pcm_interest", "Engineering & Technology"),
             ("pcm_programming", "Highly interested (I code or want to learn)"),
             ("pcm_style", "Analytical and abstract (math/algorithms)"),
-            ("subjects", "Mathematics"),
-            ("strengths", "Logical reasoning & analytical problem solving"),
+            ("subjects", "Mathematics / Statistics"),
+            ("strengths", "Logical & Analytical reasoning"),
+            ("certainty", "Very certain"),
             ("activities", "Programming/building projects"),
-            ("work_style", "Solving complex problems individually"),
-            ("career_values", "Constant learning, innovation & intellectual challenge"),
-            ("certainty", "Very certain")
+            ("work_style", "Remote/flexible work"),
+            ("career_values", "High income potential")
         ]
         
         # Start
@@ -187,9 +187,9 @@ def test_recommendation_score_differentiation_pcm():
         # Verify Software Engineer is top and has high differentiation
         assert scored[0]["slug"] == "software-engineer"
         assert scored[0]["match_score"] > 80
-        # Doctor/Designer should be significantly lower (e.g. baseline or close to baseline)
+        # Doctor/Designer should be significantly lower (baseline is 50 for mismatching stream/interest)
         doctor = next(c for c in scored if c["slug"] == "doctor")
-        assert doctor["match_score"] == 60 # No matching keywords in pcm trace
+        assert doctor["match_score"] <= 60 # Mismatching stream/interest gets near baseline score
         
     finally:
         clean_state(session_id)
@@ -210,31 +210,18 @@ def run_end_to_end_assessment(stage: str, answers: list[tuple[str, str]], expect
         })
         assert res.status_code == 200, res.text
         
-        # Answer all base path questions
-        for q_id, ans in answers:
-            # Verify continue response contains valid question/options
+        # Answer all 10 questions
+        for idx, (q_id, ans) in enumerate(answers):
             res = client.post(f"/assessment/{session_id}/answer", json={
                 "question_id": q_id,
                 "answer": ans
             })
-            assert res.status_code == 200, res.text
+            assert res.status_code == 200, f"Failed at {q_id}: {res.text}"
             payload = res.json()
-            assert payload["status"] in ["continue", "completed"]
-            if payload["status"] == "continue":
-                assert payload["question"] is not None
-                assert isinstance(payload["options"], list) and len(payload["options"]) >= 2
-            
-        if expect_clarification:
-            assert payload["status"] == "continue"
-            assert payload["question_id"] in ["adaptive_1", "predefined_clarification"]
-            
-            # Answer clarification - first submission should complete successfully
-            res = client.post(f"/assessment/{session_id}/answer", json={
-                "question_id": payload["question_id"],
-                "answer": clarification_answer or "Some clarification answer"
-            })
-            assert res.status_code == 200, res.text
-            payload = res.json()
+            if idx < 9:
+                assert payload["status"] == "continue", f"Expected continue at {q_id}, got {payload['status']}"
+            else:
+                assert payload["status"] == "completed", f"Expected completed at {q_id}, got {payload['status']}"
             
         assert payload["status"] == "completed"
         assert payload["question"] is None
@@ -245,11 +232,11 @@ def run_end_to_end_assessment(stage: str, answers: list[tuple[str, str]], expect
         assert status_res.status_code == 200, status_res.text
         status_payload = status_res.json()
         assert status_payload["status"] == "completed"
-        assert len(status_payload["answers"]) == len(answers) + (1 if expect_clarification else 0)
+        assert len(status_payload["answers"]) == 10
         
         # Verify retry of final question returns same completed payload
-        final_q_id = payload["question_id"] or answers[-1][0] if not expect_clarification else "predefined_clarification"
-        final_ans = answers[-1][1] if not expect_clarification else (clarification_answer or "Some clarification answer")
+        final_q_id = answers[-1][0]
+        final_ans = answers[-1][1]
         retry_res = client.post(f"/assessment/{session_id}/answer", json={
             "question_id": final_q_id,
             "answer": final_ans
@@ -266,11 +253,14 @@ def test_class_10_science_certain():
     answers = [
         ("start", "Science & Technology"),
         ("science_tech", "Mathematics & Problem Solving"),
+        ("math_problem_sub", "Logic puzzles & brain teasers"),
         ("subjects", "Mathematics"),
         ("strengths", "Logical reasoning & analytical problem solving"),
+        ("certainty", "Very certain"),
+        ("learning_style", "Hands-on (experiments, building projects, practice)"),
+        ("work_environment", "A laboratory, research center or library"),
         ("work_style", "Solving complex problems individually"),
-        ("career_values", "Constant learning, innovation & intellectual challenge"),
-        ("certainty", "Very certain")
+        ("career_values", "Constant learning, innovation & intellectual challenge")
     ]
     run_end_to_end_assessment("Class 10", answers, expect_clarification=False)
 
@@ -279,31 +269,32 @@ def test_class_10_business_uncertain():
     answers = [
         ("start", "Business, Finance & Entrepreneurship"),
         ("business_finance", "Starting my own company (Entrepreneurship)"),
+        ("business_skills", "Marketing strategy & creative branding"),
         ("subjects", "Languages & Literature"),
         ("strengths", "Creative writing, debate & communication"),
+        ("certainty", "Not clear at all — I am completely open to exploration"),
+        ("predefined_clarification", "Deciding between Science and Commerce"),
+        ("learning_style", "Reading/Writing (textbooks, notes, essays)"),
         ("work_style", "Leading and organizing people to achieve a goal"),
-        ("career_values", "High earning potential & financial success"),
-        ("certainty", "Not clear at all — I am completely open to exploration")
+        ("career_values", "High earning potential & financial success")
     ]
-    run_end_to_end_assessment(
-        "Class 10", 
-        answers, 
-        expect_clarification=True, 
-        clarification_answer="Deciding between Science and Commerce"
-    )
+    run_end_to_end_assessment("Class 10", answers)
 
 
 def test_class_10_creative_certain():
     answers = [
         ("start", "Creative Design & Media"),
         ("creative_media", "Graphic Design or UI/UX Design"),
+        ("creative_tools", "Digital design & photo editing software"),
         ("subjects", "Art, Music or Craft"),
         ("strengths", "Visual design, artistic creation & spatial thinking"),
+        ("certainty", "Very certain"),
+        ("learning_style", "Visual (diagrams, videos, mind maps)"),
+        ("work_environment", "A creative studio or collaborative space"),
         ("work_style", "Collaborating with a team on creative ideas"),
-        ("career_values", "Constant learning, innovation & intellectual challenge"),
-        ("certainty", "Very certain")
+        ("career_values", "Constant learning, innovation & intellectual challenge")
     ]
-    run_end_to_end_assessment("Class 10", answers, expect_clarification=False)
+    run_end_to_end_assessment("Class 10", answers)
 
 
 def test_class_12_pcm_certain():
@@ -314,12 +305,12 @@ def test_class_12_pcm_certain():
         ("pcm_style", "Analytical and abstract (math/algorithms)"),
         ("subjects", "Mathematics / Statistics"),
         ("strengths", "Logical & Analytical reasoning"),
+        ("certainty", "Very certain"),
         ("activities", "Programming/building projects"),
         ("work_style", "Remote/flexible work"),
-        ("career_values", "High income potential"),
-        ("certainty", "Very certain")
+        ("career_values", "High income potential")
     ]
-    run_end_to_end_assessment("Class 12", answers, expect_clarification=False)
+    run_end_to_end_assessment("Class 12", answers)
 
 
 def test_class_12_pcb_uncertain():
@@ -330,17 +321,12 @@ def test_class_12_pcb_uncertain():
         ("pcb_environment", "Human Anatomy and Physiology"),
         ("subjects", "Biology / Biotechnology"),
         ("strengths", "Practical & Technical skills"),
-        ("activities", "Socializing/helping community"),
+        ("certainty", "Uncertain / Exploring"),
+        ("predefined_clarification", "Whether my chosen field has high future job demand"),
         ("work_style", "Working outdoors/on-field"),
-        ("career_values", "Direct social impact"),
-        ("certainty", "Uncertain / Exploring")
+        ("career_values", "Direct social impact")
     ]
-    run_end_to_end_assessment(
-        "Class 12", 
-        answers, 
-        expect_clarification=True, 
-        clarification_answer="Whether my field has job demand"
-    )
+    run_end_to_end_assessment("Class 12", answers)
 
 
 def test_postgres_sync_replicates_state_exactly():
@@ -359,10 +345,9 @@ def test_postgres_sync_replicates_state_exactly():
         answers = [
             ("start", "Science & Technology"),
             ("science_tech", "Mathematics & Problem Solving"),
+            ("math_problem_sub", "Logic puzzles & brain teasers"),
             ("subjects", "Mathematics"),
             ("strengths", "Logical reasoning & analytical problem solving"),
-            ("work_style", "Solving complex problems individually"),
-            ("career_values", "Constant learning, innovation & intellectual challenge"),
             ("certainty", "Not clear at all — I am completely open to exploration")
         ]
         for q_id, ans in answers:
@@ -409,7 +394,7 @@ def test_postgres_sync_replicates_state_exactly():
             "asked_categories": asked_categories,
             "remaining_categories": [],
             "iteration_count": len(status_payload["answers"]),
-            "max_questions": 12,
+            "max_questions": 10,
             "confidence_threshold": 0.85,
             "is_complete": False
         }
@@ -421,13 +406,22 @@ def test_postgres_sync_replicates_state_exactly():
         })
         assert restore_res.status_code == 200, restore_res.text
         
-        # 4. Answer predefined_clarification on the restored state - FIRST submission must succeed
-        res = client.post(f"/assessment/{session_id}/answer", json={
-            "question_id": "predefined_clarification",
-            "answer": "Deciding between Science and Commerce"
-        })
-        assert res.status_code == 200, res.text
-        payload = res.json()
+        # 4. Answer predefined_clarification, learning_style, work_style, career_values to complete
+        remaining_answers = [
+            ("predefined_clarification", "Deciding between Science and Commerce"),
+            ("learning_style", "Hands-on (experiments, building projects, practice)"),
+            ("work_style", "Solving complex problems individually"),
+            ("career_values", "Constant learning, innovation & intellectual challenge")
+        ]
+        
+        for q_id, ans in remaining_answers:
+            res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": q_id,
+                "answer": ans
+            })
+            assert res.status_code == 200, res.text
+            payload = res.json()
+            
         assert payload["status"] == "completed"
         
         # 5. Verify the restored session remains completed

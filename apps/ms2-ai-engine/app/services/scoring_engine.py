@@ -91,274 +91,250 @@ def score_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     return candidates[:4]
 
 def score_candidates_stateless(profile: dict, candidates: list[dict]) -> list[dict]:
-    """Score candidates provided by MS1 based on profile dimensions deterministically."""
+    """Score candidates provided by MS1 based on profile dimensions deterministically using a 100-point weighted scale."""
     academic_stage = profile.get("academic_stage", "Class 10")
-    
-    extracted_interests = [i.lower() for i in profile.get("extracted_interests", [])]
-    inferred_strengths = [s.lower() for s in profile.get("inferred_strengths", [])]
-    career_values = [v.lower() for v in profile.get("career_values", [])]
-    work_preferences = [w.lower() for w in profile.get("work_preferences", [])]
-    
-    # Bug 1 Fix: Parse answers for precise category-based signals
     raw_answers = profile.get("answers", [])
     
-    selected_subjects = []
-    math_comfort = ""
-    raw_answer_strings = []
+    # Parse answers map supporting multiple shapes
+    answers_map = {}
     for ans in raw_answers:
-        cat = ans.get("category", "")
-        opt = ans.get("answer", ans.get("selectedOption", ""))
-        if opt:
-            opt = opt.lower()
-            raw_answer_strings.append(opt)
-            if cat == "subjects":
-                selected_subjects.append(opt)
-            elif cat == "math_comfort":
-                math_comfort = opt
+        q_id = ans.get("question_id") or ans.get("category")
+        ans_text = ans.get("answer") or ans.get("selectedOption") or ""
+        if q_id and ans_text:
+            answers_map[q_id] = ans_text.strip()
 
-    # Combine standard extracted arrays + raw answer text for general search
-    all_evidence = set(
-        extracted_interests
-        + inferred_strengths
-        + career_values
-        + work_preferences
-        + raw_answer_strings
-    )
+    # Extract legacy arrays
+    extracted_interests = [i.lower() for i in profile.get("extracted_interests", [])]
+    inferred_strengths = [s.lower() for s in profile.get("inferred_strengths", [])]
+    career_values_list = [v.lower() for v in profile.get("career_values", [])]
+    work_preferences = [w.lower() for w in profile.get("work_preferences", [])]
 
-    # Helper to check if any keyword is a substring of any evidence element
-    def has_match(keywords: set[str], evidence: set[str]) -> bool:
-        for kw in keywords:
-            for ev in evidence:
-                if kw in ev:
-                    return True
-        return False
+    # Matching functions to bridge raw answers and legacy arrays
+    def any_interest_match(keywords: list[str], fallback_str: str) -> bool:
+        if any(any(kw in i for kw in keywords) for i in extracted_interests):
+            return True
+        return any(kw in fallback_str for kw in keywords)
+
+    def any_subject_match(keywords: list[str], fallback_str: str) -> bool:
+        if any(any(kw in s for kw in keywords) for s in extracted_interests):
+            return True
+        return any(kw in fallback_str for kw in keywords)
+
+    def any_strength_match(keywords: list[str], fallback_str: str) -> bool:
+        if any(any(kw in s for kw in keywords) for s in inferred_strengths):
+            return True
+        return any(kw in fallback_str for kw in keywords)
+
+    def any_style_match(keywords: list[str], fallback_str: str) -> bool:
+        if any(any(kw in w for kw in keywords) for w in work_preferences):
+            return True
+        return any(kw in fallback_str for kw in keywords)
+
+    def any_value_match(keywords: list[str], fallback_str: str) -> bool:
+        if any(any(kw in v for kw in keywords) for v in career_values_list):
+            return True
+        return any(kw in fallback_str for kw in keywords)
 
     scored_results = []
 
     for candidate in candidates:
-        slug = candidate.get("slug", "")
-        title = candidate.get("title", "")
-        base_score = 60  # Starting score for every eligible candidate
-        score_breakdown = {}
-        personalized_reason = "Strong alignment based on assessment profile strengths and interests."
-
-        # ── Keyword sets ────────────────────────────────────────────────────
-        # Each set covers BOTH the legacy answer strings AND the new branching-
-        # bank option strings so that no student answer falls silently through.
-        tech_keywords = {
-            # Legacy / Class 12 strings
-            "coding", "programming", "software", "ai", "data",
-            "computers & technology", "technology", "mathematics", "math",
-            "science & technology", "engineering & technology",
-            # New Class 10 Q1 strings
-            "science & technology",
-            # New Class 10 science_tech branch options
-            "mathematics & problem solving",
-            "computers & coding",
-            "engineering & building things",
-            "research & scientific discovery",
-            # New Class 10 computers_tech_sub options
-            "building apps or websites",
-            "artificial intelligence & data science",
-            "cybersecurity",
-            "game development",
-            "understanding how hardware works",
-            # Class 12 PCM / pcm_area options
-            "engineering & technology", "data science & ai", "defense services",
-            "architecture & design", "pure mathematics & scientific research",
-        }
-        bio_keywords = {
-            # Legacy strings
-            "biology", "healthcare", "medicine", "treating patients",
-            "life sciences", "scientific curiosity",
-            # New Class 10 branch options
-            "biology & healthcare",
-            "treating patients — medicine & surgery",
-            "biological research & genetics",
-            "healthcare technology & medical devices",
-            "environmental & ecological sciences",
-            "pharmacy & drug development",
-            # New Class 10 helping_area options
-            "healthcare & medicine",
-            # Class 12 PCB / pcb_area options
-            "medicine (mbbs/bds)", "biotechnology & research",
-            "psychology & mental health", "healthcare management",
-            "environmental sciences",
-        }
-        business_keywords = {
-            # Legacy strings
-            "business & money", "entrepreneurship", "finance", "management",
-            "marketing", "stock markets", "economics",
-            # New Class 10 Q1 string
-            "business, finance & entrepreneurship",
-            # New Class 10 business_area options
-            "starting my own company (entrepreneurship)",
-            "investing & stock markets",
-            "chartered accountancy / financial auditing",
-            "marketing & consumer behavior",
-            "economics & public policy",
-            # Class 12 commerce_area options
-            "finance & investment banking", "chartered accountancy (ca/cs)",
-            "business management (bba/mba)", "economics & policy",
-            "marketing & advertising",
-        }
-        creative_keywords = {
-            # Legacy strings
-            "arts & humanities", "creative work & design", "design", "writing",
-            "creativity", "communication", "media",
-            # New Class 10 Q1 strings
-            "creative design & media", "arts, humanities & social sciences",
-            # New Class 10 creative_area options
-            "graphic design or ui/ux design",
-            "filmmaking & video production",
-            "music & sound production",
-            "creative writing & journalism",
-            "animation & visual effects",
-            "architecture & interior design",
-            # New Class 10 arts_area options
-            "law & legal studies", "history, politics & civics",
-            "sociology & anthropology", "languages & literature",
-            "philosophy & ethics",
-            # Class 12 arts branch options
-            "law & legal studies", "journalism & mass communication",
-            "civil services (upsc)", "languages & education",
-        }
-
-        # Determine candidate family alignment
-        family = candidate.get("careerFamily", "")
-        if family is None:
-            family = ""
-        family = family.lower()
-        
+        slug = candidate.get("slug", "") or ""
+        title = candidate.get("title", "") or ""
+        family = (candidate.get("careerFamily") or "").lower()
         is_academic = candidate.get("type") == "ACADEMIC_DIRECTION"
         
+        # 1. Primary Interest/Branch Alignment (Weight: 40%)
+        primary_score = 10
+        start_ans = answers_map.get("start", "").lower()
+        science_tech_ans = answers_map.get("science_tech", "").lower()
+        
+        # Strict boundary check to prevent substring matching conflict (PCM vs PCMB)
+        is_pcmb = ("pcmb" in slug.lower()) or ("pcmb" in title.lower())
+        is_pcm = ("pcm" in slug.lower() or "pcm" in title.lower()) and not is_pcmb
+        is_pcb = ("pcb" in slug.lower() or "pcb" in title.lower()) and not is_pcmb
+        
         if is_academic:
-            slug_lower = slug.lower()
-            title_lower = title.lower()
-            matched_signals = []
-            
-            if "pcm" in slug_lower or "pcm" in title_lower:
-                if has_match(tech_keywords, all_evidence) or any("science" in s or "physics" in s or "chemistry" in s for s in selected_subjects):
-                    base_score += 15
-                    matched_signals.append("interest in science and technology")
-                if "mathematics" in selected_subjects or math_comfort in ["very comfortable", "somewhat comfortable"] or has_match({"mathematics", "math", "logic"}, all_evidence):
-                    base_score += 15
-                    matched_signals.append("comfort with mathematics")
-                if has_match({"logical reasoning", "problem solving", "analytical"}, all_evidence):
-                    base_score += 8
-                    matched_signals.append("logical problem-solving strengths")
-                
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} make Science PCM a strong academic fit."
-                else:
-                    personalized_reason = "Science PCM aligns with your general interest in analytical streams."
-                    
-            elif "pcb" in slug_lower or "pcb" in title_lower:
-                if has_match(bio_keywords, all_evidence) or "biology" in selected_subjects:
-                    base_score += 15
-                    matched_signals.append("interest in biology and life sciences")
-                if has_match({"healthcare", "medicine", "treating patients"}, all_evidence):
-                    base_score += 15
-                    matched_signals.append("interest in healthcare and medical fields")
-                if has_match({"scientific curiosity", "empathy", "resilience"}, all_evidence):
-                    base_score += 8
-                    matched_signals.append("scientific curiosity and empathy")
-                
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} align well with Science PCB."
-                else:
-                    personalized_reason = "Science PCB is suitable for medical and life science paths."
-                    
-            elif "commerce" in slug_lower or "commerce" in title_lower:
-                if has_match(business_keywords, all_evidence) or "commerce" in selected_subjects or "economics" in selected_subjects or "accountancy" in selected_subjects:
-                    base_score += 15
-                    matched_signals.append("interest in business and finance")
-                if has_match({"economics", "entrepreneurship", "marketing"}, all_evidence):
-                    base_score += 15
-                    matched_signals.append("entrepreneurial inclinations")
-                if has_match({"leadership", "numerical reasoning", "finance"}, all_evidence):
-                    base_score += 8
-                    matched_signals.append("strong business acumen")
-                
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} make Commerce a highly viable path."
-                else:
-                    personalized_reason = "Commerce is suitable for business, finance, and management fields."
-                    
-            elif any(x in slug_lower for x in ["arts", "humanities"]) or any(x in title_lower for x in ["arts", "humanities"]):
-                if has_match(creative_keywords, all_evidence) or has_match({"humanities", "history", "political science", "psychology", "literature"}, set(selected_subjects)):
-                    base_score += 15
-                    matched_signals.append("interest in humanities and social sciences")
-                if has_match({"writing", "communication", "debate"}, all_evidence):
-                    base_score += 15
-                    matched_signals.append("strong communication preferences")
-                if has_match({"creativity", "empathy", "social awareness"}, all_evidence):
-                    base_score += 8
-                    matched_signals.append("creative and social awareness strengths")
-                
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} make Arts & Humanities a strong choice."
-                else:
-                    personalized_reason = "Arts & Humanities aligns with creative, communication, and social interests."
-                    
-            elif any(x in slug_lower for x in ["design", "creative"]) or any(x in title_lower for x in ["design", "creative"]):
-                if has_match(creative_keywords, all_evidence) or "fine arts" in selected_subjects or "design" in selected_subjects:
-                    base_score += 20
-                    matched_signals.append("passion for design and visual arts")
-                if has_match({"creativity", "visual thinking", "imagination"}, all_evidence):
-                    base_score += 15
-                    matched_signals.append("strong creative strengths")
-                    
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} highlight Design/Creative as an ideal path."
-                else:
-                    personalized_reason = "Design/Creative stream aligns with artistic and visual interests."
+            if is_pcm:
+                if any_interest_match(["science"], start_ans):
+                    if any_interest_match(["math", "computer", "engineering", "coding", "technology", "research"], science_tech_ans):
+                        primary_score = 40
+                    elif any_interest_match(["biology"], science_tech_ans):
+                        primary_score = 20
+                    else:
+                        primary_score = 30
+                elif any_interest_match(["exploring"], start_ans):
+                    primary_score = 20
+            elif is_pcb:
+                if any_interest_match(["science"], start_ans):
+                    if any_interest_match(["biology", "healthcare", "medicine"], science_tech_ans):
+                        primary_score = 40
+                    elif any_interest_match(["research"], science_tech_ans):
+                        primary_score = 25
+                    else:
+                        primary_score = 15
+                elif any_interest_match(["helping"], start_ans):
+                    helping_ans = answers_map.get("helping_people", "").lower()
+                    if any_interest_match(["health", "medicine"], helping_ans):
+                        primary_score = 35
+                elif any_interest_match(["exploring"], start_ans):
+                    primary_score = 20
+            elif is_pcmb:
+                if any_interest_match(["science"], start_ans):
+                    if any_interest_match(["biology", "math", "research"], science_tech_ans):
+                        primary_score = 40
+                    else:
+                        primary_score = 30
+                elif any_interest_match(["exploring"], start_ans):
+                    primary_score = 25
+            elif "commerce" in slug.lower() or "commerce" in title.lower():
+                if any_interest_match(["business", "finance", "entrepreneurship", "management", "commerce"], start_ans):
+                    primary_score = 40
+                elif any_interest_match(["exploring"], start_ans):
+                    primary_score = 20
+            elif any(x in slug.lower() for x in ["arts", "humanities"]) or any(x in title.lower() for x in ["arts", "humanities"]):
+                if any_interest_match(["arts", "humanities"], start_ans):
+                    primary_score = 40
+                elif any_interest_match(["exploring", "helping"], start_ans):
+                    primary_score = 30
+            elif any(x in slug.lower() for x in ["design", "creative"]) or any(x in title.lower() for x in ["design", "creative"]):
+                if any_interest_match(["creative", "design", "media"], start_ans):
+                    primary_score = 40
+                elif any_interest_match(["arts", "exploring"], start_ans):
+                    primary_score = 35
         else:
-            # Class 12 logic
-            matched_signals = []
-            if family in ["technology", "engineering", "it"]:
-                if has_match(tech_keywords, all_evidence):
-                    base_score += 20
-                    matched_signals.append("interest in technology")
-                if has_match({"mathematics", "math"}, all_evidence):
-                    base_score += 10
-                    matched_signals.append("comfort with mathematics")
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} align well with a career in tech/engineering."
-            
-            elif family in ["healthcare", "life sciences", "medical"]:
-                if has_match(bio_keywords, all_evidence):
-                    base_score += 25
-                    matched_signals.append("interest in biological sciences")
-                if has_match({"treating patients", "healthcare"}, all_evidence):
-                    base_score += 10
-                    matched_signals.append("preference for healthcare")
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} support a path in healthcare and biology."
-                    
-            elif family in ["business", "finance", "marketing"]:
-                if has_match(business_keywords, all_evidence):
-                    base_score += 20
-                    matched_signals.append("interest in business or finance")
-                if has_match({"economics", "management"}, all_evidence):
-                    base_score += 10
-                    matched_signals.append("management inclinations")
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} make business, finance, or marketing a strong choice."
-                    
-            elif family in ["design", "architecture", "media", "creative"]:
-                if has_match(creative_keywords, all_evidence):
-                    base_score += 25
-                    matched_signals.append("creative interests")
-                if has_match({"visual thinking", "creativity"}, all_evidence):
-                    base_score += 10
-                    matched_signals.append("creativity strength")
-                if matched_signals:
-                    personalized_reason = f"Your {' and '.join(matched_signals)} align with creative design fields."
-        
-        # Normalize score
-        final_score = min(98, max(50, base_score))
-        
+            # Class 12 candidates: Careers or Courses
+            stream = profile.get("current_stream", "").upper()
+            if stream == "PCM":
+                if family in ["technology", "engineering", "it"]:
+                    primary_score = 40
+                elif family in ["business", "finance", "management", "design"]:
+                    primary_score = 20
+            elif stream == "PCB":
+                if family in ["healthcare", "life sciences", "medical"]:
+                    primary_score = 40
+                elif family in ["business", "management", "design"]:
+                    primary_score = 20
+            elif stream == "PCMB":
+                if family in ["technology", "engineering", "it", "healthcare", "life sciences", "medical"]:
+                    primary_score = 40
+                else:
+                    primary_score = 20
+            elif stream == "COMMERCE":
+                if family in ["business", "finance", "marketing", "management"]:
+                    primary_score = 40
+                elif family in ["design", "creative", "media"]:
+                    primary_score = 20
+            elif stream in ["ARTS", "HUMANITIES"]:
+                if family in ["design", "media", "creative", "healthcare", "mental health"]:
+                    primary_score = 40
+                else:
+                    primary_score = 20
+
+        # 2. Subject Alignment (Weight: 20%)
+        subject_score = 5
+        subj_ans = answers_map.get("subjects", "").lower()
+        if is_pcm or family in ["technology", "engineering", "it"]:
+            if any_subject_match(["math", "physics", "chemistry", "coding", "computer"], subj_ans):
+                subject_score = 20
+        elif is_pcb or family in ["healthcare", "life sciences", "medical"]:
+            if any_subject_match(["biology", "physics", "chemistry", "life sciences"], subj_ans):
+                subject_score = 20
+        elif is_pcmb:
+            if any_subject_match(["biology", "math", "physics", "chemistry"], subj_ans):
+                subject_score = 20
+        elif "commerce" in slug.lower() or "commerce" in title.lower() or family in ["business", "finance", "marketing"]:
+            if any_subject_match(["accountancy", "business", "economics", "math", "social"], subj_ans):
+                subject_score = 20
+        elif any(x in slug.lower() for x in ["arts", "humanities", "design", "creative"]) or any(x in title.lower() for x in ["arts", "humanities", "design", "creative"]) or family in ["design", "media", "creative"]:
+            if any_subject_match(["social", "languages", "art", "music", "fine arts"], subj_ans):
+                subject_score = 20
+
+        # 3. Strength Alignment (Weight: 15%)
+        strength_score = 5
+        str_ans = answers_map.get("strengths", "").lower()
+        if is_pcm or family in ["technology", "engineering", "it"]:
+            if any_strength_match(["logical", "analytical", "practical", "technical", "building"], str_ans):
+                strength_score = 15
+        elif is_pcb or family in ["healthcare", "life sciences", "medical"]:
+            if any_strength_match(["logical", "analytical", "empathy", "communication", "verbal"], str_ans):
+                strength_score = 15
+        elif is_pcmb:
+            if any_strength_match(["logical", "analytical", "practical", "technical", "empathy"], str_ans):
+                strength_score = 15
+        elif "commerce" in slug.lower() or "commerce" in title.lower() or family in ["business", "finance", "marketing"]:
+            if any_strength_match(["logical", "analytical", "communication", "verbal", "leadership"], str_ans):
+                strength_score = 15
+        elif any(x in slug.lower() for x in ["arts", "humanities", "design", "creative"]) or any(x in title.lower() for x in ["arts", "humanities", "design", "creative"]) or family in ["design", "media", "creative"]:
+            if any_strength_match(["creative", "visual", "artistic", "communication", "verbal"], str_ans):
+                strength_score = 15
+
+        # 4. Work-Style Alignment (Weight: 10%)
+        work_style_score = 5
+        style_ans = answers_map.get("work_style", "").lower()
+        if is_pcm or family in ["technology", "engineering", "it"]:
+            if any_style_match(["individual", "complex", "research", "lab", "office", "structured"], style_ans):
+                work_style_score = 10
+        elif is_pcb or family in ["healthcare", "life sciences", "medical"]:
+            if any_style_match(["helping", "teaching", "mentoring", "clinical", "hospital", "outdoors", "field"], style_ans):
+                work_style_score = 10
+        elif is_pcmb:
+            if any_style_match(["individual", "complex", "research", "lab", "helping", "teaching", "mentoring"], style_ans):
+                work_style_score = 10
+        elif "commerce" in slug.lower() or "commerce" in title.lower() or family in ["business", "finance", "marketing"]:
+            if any_style_match(["leading", "organizing", "team", "office", "corporate", "structured"], style_ans):
+                work_style_score = 10
+        elif any(x in slug.lower() for x in ["arts", "humanities", "design", "creative"]) or any(x in title.lower() for x in ["arts", "humanities", "design", "creative"]) or family in ["design", "media", "creative"]:
+            if any_style_match(["team", "creative", "studio", "collaborating", "individual"], style_ans):
+                work_style_score = 10
+
+        # 5. Career-Value Alignment (Weight: 15%)
+        career_value_score = 5
+        val_ans = answers_map.get("career_values", "").lower()
+        if is_pcm or family in ["technology", "engineering", "it"]:
+            if any_value_match(["learning", "innovation", "intellectual", "earning", "income"], val_ans):
+                career_value_score = 15
+        elif is_pcb or family in ["healthcare", "life sciences", "medical"]:
+            if any_value_match(["impact", "helping", "learning", "innovation", "stability", "security"], val_ans):
+                career_value_score = 15
+        elif is_pcmb:
+            if any_value_match(["learning", "innovation", "impact", "helping", "earning", "income"], val_ans):
+                career_value_score = 15
+        elif "commerce" in slug.lower() or "commerce" in title.lower() or family in ["business", "finance", "marketing"]:
+            if any_value_match(["earning", "income", "stability", "security"], val_ans):
+                career_value_score = 15
+        elif any(x in slug.lower() for x in ["arts", "humanities", "design", "creative"]) or any(x in title.lower() for x in ["arts", "humanities", "design", "creative"]) or family in ["design", "media", "creative"]:
+            if any_value_match(["creative", "freedom", "impact", "helping"], val_ans):
+                career_value_score = 15
+
+        # Sum components
+        final_score = primary_score + subject_score + strength_score + work_style_score + career_value_score
+        final_score = min(98, max(50, final_score))
+
+        score_breakdown = {
+            "primary_interest": primary_score,
+            "subject_alignment": subject_score,
+            "strength_alignment": strength_score,
+            "work_style": work_style_score,
+            "career_values": career_value_score
+        }
+
+        # Select custom reason
+        if is_academic:
+            if is_pcm:
+                personalized_reason = "Strong alignment with engineering and physical science paths."
+            elif is_pcb:
+                personalized_reason = "Aligned with healthcare, life sciences, and medicine."
+            elif is_pcmb:
+                personalized_reason = "Dual-focus path keeping both technology and medical options open."
+            elif "commerce" in slug.lower() or "commerce" in title.lower():
+                personalized_reason = "Well-suited for finance, business studies, and entrepreneurial pursuits."
+            elif any(x in slug.lower() for x in ["arts", "humanities"]) or any(x in title.lower() for x in ["arts", "humanities"]):
+                personalized_reason = "Strong fit for social sciences, law, humanities, and communication fields."
+            else:
+                personalized_reason = "Aligned with visual design, creative thinking, and artistic paths."
+        else:
+            personalized_reason = f"Fits your profile strengths and values in the {family} family."
+
         scored_results.append({
             "candidate_id": candidate.get("id"),
             "slug": slug,
@@ -381,4 +357,3 @@ def score_candidates_stateless(profile: dict, candidates: list[dict]) -> list[di
         scored_results[0]["is_primary"] = True
         
     return scored_results[:5]
-
