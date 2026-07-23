@@ -1,5 +1,6 @@
 import sys
 import uuid
+import json
 from pathlib import Path
 from fastapi.testclient import TestClient
 
@@ -200,50 +201,52 @@ def test_recommendation_score_differentiation_pcm():
 # =====================================================================
 
 def run_end_to_end_assessment(stage: str, answers: list[tuple[str, str]], expect_clarification: bool = False, clarification_answer: str = None):
+    from unittest.mock import patch
     session_id = f"test-e2e-{uuid.uuid4()}"
     try:
-        # Start
-        res = client.post("/assessment/start", json={
-            "user_id": "test-user",
-            "session_id": session_id,
-            "academic_stage": stage
-        })
-        assert res.status_code == 200, res.text
-        
-        # Answer all 10 questions
-        for idx, (q_id, ans) in enumerate(answers):
-            res = client.post(f"/assessment/{session_id}/answer", json={
-                "question_id": q_id,
-                "answer": ans
+        with patch("app.services.question_generator.os.getenv", return_value=None):
+            # Start
+            res = client.post("/assessment/start", json={
+                "user_id": "test-user",
+                "session_id": session_id,
+                "academic_stage": stage
             })
-            assert res.status_code == 200, f"Failed at {q_id}: {res.text}"
-            payload = res.json()
-            if idx < 9:
-                assert payload["status"] == "continue", f"Expected continue at {q_id}, got {payload['status']}"
-            else:
-                assert payload["status"] == "completed", f"Expected completed at {q_id}, got {payload['status']}"
+            assert res.status_code == 200, res.text
             
-        assert payload["status"] == "completed"
-        assert payload["question"] is None
-        assert payload["options"] is None
-        
-        # Verify status endpoint returns the complete answers array
-        status_res = client.get(f"/assessment/{session_id}")
-        assert status_res.status_code == 200, status_res.text
-        status_payload = status_res.json()
-        assert status_payload["status"] == "completed"
-        assert len(status_payload["answers"]) == 10
-        
-        # Verify retry of final question returns same completed payload
-        final_q_id = answers[-1][0]
-        final_ans = answers[-1][1]
-        retry_res = client.post(f"/assessment/{session_id}/answer", json={
-            "question_id": final_q_id,
-            "answer": final_ans
-        })
-        assert retry_res.status_code == 200, retry_res.text
-        retry_payload = retry_res.json()
-        assert retry_payload["status"] == "completed"
+            # Answer all 10 questions
+            for idx, (q_id, ans) in enumerate(answers):
+                res = client.post(f"/assessment/{session_id}/answer", json={
+                    "question_id": q_id,
+                    "answer": ans
+                })
+                assert res.status_code == 200, f"Failed at {q_id}: {res.text}"
+                payload = res.json()
+                if idx < 9:
+                    assert payload["status"] == "continue", f"Expected continue at {q_id}, got {payload['status']}"
+                else:
+                    assert payload["status"] == "completed", f"Expected completed at {q_id}, got {payload['status']}"
+            
+            assert payload["status"] == "completed"
+            assert payload["question"] is None
+            assert payload["options"] is None
+            
+            # Verify status endpoint returns the complete answers array
+            status_res = client.get(f"/assessment/{session_id}")
+            assert status_res.status_code == 200, status_res.text
+            status_payload = status_res.json()
+            assert status_payload["status"] == "completed"
+            assert len(status_payload["answers"]) == 10
+            
+            # Verify retry of final question returns same completed payload
+            final_q_id = answers[-1][0]
+            final_ans = answers[-1][1]
+            retry_res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": final_q_id,
+                "answer": final_ans
+            })
+            assert retry_res.status_code == 200, retry_res.text
+            retry_payload = retry_res.json()
+            assert retry_payload["status"] == "completed"
         
     finally:
         clean_state(session_id)
@@ -331,9 +334,117 @@ def test_class_12_pcb_uncertain():
 
 def test_postgres_sync_replicates_state_exactly():
     """Explicitly simulate P0 state loss and restore sequence to confirm sync works."""
+    from unittest.mock import patch
     session_id = f"test-restore-{uuid.uuid4()}"
     try:
-        # 1. Start Assessment
+        with patch("app.services.question_generator.os.getenv", return_value=None):
+            # 1. Start Assessment
+            res = client.post("/assessment/start", json={
+                "user_id": "test-user",
+                "session_id": session_id,
+                "academic_stage": "Class 10"
+            })
+            assert res.status_code == 200, res.text
+            
+            # 2. Answer up to certainty (uncertain)
+            answers = [
+                ("start", "Science & Technology"),
+                ("science_tech", "Mathematics & Problem Solving"),
+                ("math_problem_sub", "Logic puzzles & brain teasers"),
+                ("subjects", "Mathematics"),
+                ("strengths", "Logical reasoning & analytical problem solving"),
+                ("certainty", "Not clear at all — I am completely open to exploration")
+            ]
+            for q_id, ans in answers:
+                res = client.post(f"/assessment/{session_id}/answer", json={
+                    "question_id": q_id,
+                    "answer": ans
+                })
+                assert res.status_code == 200, res.text
+                payload = res.json()
+                
+            assert payload["status"] == "continue"
+            assert payload["question_id"] == "predefined_clarification"
+            
+            # 3. Simulate MS2 404/State Loss: Load answers from status endpoint (MS1 fetches status)
+            status_res = client.get(f"/assessment/{session_id}")
+            assert status_res.status_code == 200, status_res.text
+            status_payload = status_res.json()
+            assert "answers" in status_payload
+            assert len(status_payload["answers"]) == len(answers)
+            
+            # Simulate state loss by deleting MS2 file from disk
+            clean_state(session_id)
+            
+            # Reconstruct the exact MS2 state structure in MS1 format
+            question_history = [
+                {
+                    "question": a.get("question"),
+                    "question_id": a.get("question_id"),
+                    "category": a.get("category"),
+                    "answer": a.get("answer"),
+                    "iteration": idx + 1
+                }
+                for idx, a in enumerate(status_payload["answers"])
+            ]
+            asked_categories = [a.get("category") for a in status_payload["answers"] if a.get("category")]
+            
+            restored_state = {
+                "user_id": "test-user",
+                "session_id": session_id,
+                "academic_stage": "Class 10",
+                "answers": status_payload["answers"],
+                "current_question": {"id": "predefined_clarification"},
+                "question_history": question_history,
+                "asked_categories": asked_categories,
+                "remaining_categories": [],
+                "iteration_count": len(status_payload["answers"]),
+                "max_questions": 10,
+                "confidence_threshold": 0.85,
+                "is_complete": False
+            }
+            
+            # Call MS2 restore
+            restore_res = client.post("/assessment/restore", json={
+                "session_id": session_id,
+                "state": restored_state
+            })
+            assert restore_res.status_code == 200, restore_res.text
+            
+            # 4. Answer predefined_clarification, learning_style, work_style, career_values to complete
+            remaining_answers = [
+                ("predefined_clarification", "Deciding between Science and Commerce"),
+                ("learning_style", "Hands-on (experiments, building projects, practice)"),
+                ("work_style", "Solving complex problems individually"),
+                ("career_values", "Constant learning, innovation & intellectual challenge")
+            ]
+            
+            for q_id, ans in remaining_answers:
+                res = client.post(f"/assessment/{session_id}/answer", json={
+                    "question_id": q_id,
+                    "answer": ans
+                })
+                assert res.status_code == 200, res.text
+                payload = res.json()
+                
+            assert payload["status"] == "completed"
+            
+            # 5. Verify the restored session remains completed
+            status_res = client.get(f"/assessment/{session_id}")
+            assert status_res.status_code == 200, status_res.text
+            status_payload = status_res.json()
+            assert status_payload["status"] == "completed"
+            assert status_payload["is_complete"] is True
+        
+    finally:
+        clean_state(session_id)
+
+
+def test_class_10_adaptive_clarification_success():
+    from unittest.mock import patch
+    session_id = f"test-adaptive-success-{uuid.uuid4()}"
+    try:
+        # Start
         res = client.post("/assessment/start", json={
             "user_id": "test-user",
             "session_id": session_id,
@@ -341,14 +452,13 @@ def test_postgres_sync_replicates_state_exactly():
         })
         assert res.status_code == 200, res.text
         
-        # 2. Answer up to certainty (uncertain)
+        # 1. Answer up to certainty (uncertain)
         answers = [
             ("start", "Science & Technology"),
             ("science_tech", "Mathematics & Problem Solving"),
             ("math_problem_sub", "Logic puzzles & brain teasers"),
             ("subjects", "Mathematics"),
-            ("strengths", "Logical reasoning & analytical problem solving"),
-            ("certainty", "Not clear at all — I am completely open to exploration")
+            ("strengths", "Logical reasoning & analytical problem solving")
         ]
         for q_id, ans in answers:
             res = client.post(f"/assessment/{session_id}/answer", json={
@@ -356,65 +466,43 @@ def test_postgres_sync_replicates_state_exactly():
                 "answer": ans
             })
             assert res.status_code == 200, res.text
-            payload = res.json()
+        
+        # 2. Answer certainty with an uncertain answer, mocking Gemini
+        with patch("app.services.question_generator.os.getenv", return_value="fake-key"), \
+             patch("app.services.question_generator.call_gemini") as mock_gemini:
+            mock_gemini.return_value = json.dumps({
+                "question": "Which specific area of tech are you most curious about?",
+                "options": ["Software", "Hardware", "BioTech", "AI"],
+                "category": "adaptive_clarification"
+            })
             
-        assert payload["status"] == "continue"
-        assert payload["question_id"] == "predefined_clarification"
-        
-        # 3. Simulate MS2 404/State Loss: Load answers from status endpoint (MS1 fetches status)
-        status_res = client.get(f"/assessment/{session_id}")
-        assert status_res.status_code == 200, status_res.text
-        status_payload = status_res.json()
-        assert "answers" in status_payload
-        assert len(status_payload["answers"]) == len(answers)
-        
-        # Simulate state loss by deleting MS2 file from disk
-        clean_state(session_id)
-        
-        # Reconstruct the exact MS2 state structure in MS1 format
-        question_history = [
-            {
-                "question": a.get("question"),
-                "question_id": a.get("question_id"),
-                "category": a.get("category"),
-                "answer": a.get("answer"),
-                "iteration": idx + 1
-            }
-            for idx, a in enumerate(status_payload["answers"])
-        ]
-        asked_categories = [a.get("category") for a in status_payload["answers"] if a.get("category")]
-        
-        restored_state = {
-            "user_id": "test-user",
-            "session_id": session_id,
-            "academic_stage": "Class 10",
-            "answers": status_payload["answers"],
-            "current_question": {"id": "predefined_clarification"},
-            "question_history": question_history,
-            "asked_categories": asked_categories,
-            "remaining_categories": [],
-            "iteration_count": len(status_payload["answers"]),
-            "max_questions": 10,
-            "confidence_threshold": 0.85,
-            "is_complete": False
-        }
-        
-        # Call MS2 restore
-        restore_res = client.post("/assessment/restore", json={
-            "session_id": session_id,
-            "state": restored_state
+            res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": "certainty",
+                "answer": "Somewhat clear — I have a few options but need guidance"
+            })
+            assert res.status_code == 200, res.text
+            payload = res.json()
+            assert payload["status"] == "continue"
+            assert payload["question_id"] == "adaptive_1"
+            assert payload["question"] == "Which specific area of tech are you most curious about?"
+            
+        # 3. Answer adaptive_1
+        res = client.post(f"/assessment/{session_id}/answer", json={
+            "question_id": "adaptive_1",
+            "answer": "Software"
         })
-        assert restore_res.status_code == 200, restore_res.text
+        assert res.status_code == 200, res.text
+        payload = res.json()
+        assert payload["status"] == "continue"
+        assert payload["question_id"] == "learning_style"
         
-        # 4. Answer predefined_clarification, learning_style, work_style, career_values to complete
-        remaining_answers = [
-            ("predefined_clarification", "Deciding between Science and Commerce"),
+        # 4. Finish remaining answers (learning_style, work_style, career_values)
+        remaining = [
             ("learning_style", "Hands-on (experiments, building projects, practice)"),
             ("work_style", "Solving complex problems individually"),
             ("career_values", "Constant learning, innovation & intellectual challenge")
         ]
-        
-        for q_id, ans in remaining_answers:
+        for q_id, ans in remaining:
             res = client.post(f"/assessment/{session_id}/answer", json={
                 "question_id": q_id,
                 "answer": ans
@@ -424,13 +512,92 @@ def test_postgres_sync_replicates_state_exactly():
             
         assert payload["status"] == "completed"
         
-        # 5. Verify the restored session remains completed
+        # Verify 10 questions total in answers
         status_res = client.get(f"/assessment/{session_id}")
         assert status_res.status_code == 200, status_res.text
         status_payload = status_res.json()
-        assert status_payload["status"] == "completed"
-        assert status_payload["is_complete"] is True
+        assert len(status_payload["answers"]) == 10
+        assert status_payload["answers"][6]["question_id"] == "adaptive_1"
         
     finally:
         clean_state(session_id)
+
+
+def test_class_10_adaptive_clarification_fallback():
+    from unittest.mock import patch
+    session_id = f"test-adaptive-fallback-{uuid.uuid4()}"
+    try:
+        # Start
+        res = client.post("/assessment/start", json={
+            "user_id": "test-user",
+            "session_id": session_id,
+            "academic_stage": "Class 10"
+        })
+        assert res.status_code == 200, res.text
+        
+        # 1. Answer up to certainty (uncertain)
+        answers = [
+            ("start", "Science & Technology"),
+            ("science_tech", "Mathematics & Problem Solving"),
+            ("math_problem_sub", "Logic puzzles & brain teasers"),
+            ("subjects", "Mathematics"),
+            ("strengths", "Logical reasoning & analytical problem solving")
+        ]
+        for q_id, ans in answers:
+            res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": q_id,
+                "answer": ans
+            })
+            assert res.status_code == 200, res.text
+        
+        # 2. Answer certainty with an uncertain answer, mocking Gemini exception to force fallback
+        with patch("app.services.question_generator.os.getenv", return_value="fake-key"), \
+             patch("app.services.question_generator.call_gemini", side_effect=Exception("Gemini timeout")):
+            
+            res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": "certainty",
+                "answer": "Somewhat clear — I have a few options but need guidance"
+            })
+            assert res.status_code == 200, res.text
+            payload = res.json()
+            assert payload["status"] == "continue"
+            # It fallback to predefined_clarification instead of throwing 500
+            assert payload["question_id"] == "predefined_clarification"
+            
+        # 3. Answer predefined_clarification
+        res = client.post(f"/assessment/{session_id}/answer", json={
+            "question_id": "predefined_clarification",
+            "answer": "Deciding between Science and Commerce"
+        })
+        assert res.status_code == 200, res.text
+        payload = res.json()
+        assert payload["status"] == "continue"
+        assert payload["question_id"] == "learning_style"
+        
+        # 4. Finish remaining answers (learning_style, work_style, career_values)
+        remaining = [
+            ("learning_style", "Hands-on (experiments, building projects, practice)"),
+            ("work_style", "Solving complex problems individually"),
+            ("career_values", "Constant learning, innovation & intellectual challenge")
+        ]
+        for q_id, ans in remaining:
+            res = client.post(f"/assessment/{session_id}/answer", json={
+                "question_id": q_id,
+                "answer": ans
+            })
+            assert res.status_code == 200, res.text
+            payload = res.json()
+            
+        assert payload["status"] == "completed"
+        
+        # Verify 10 questions total in answers
+        status_res = client.get(f"/assessment/{session_id}")
+        assert status_res.status_code == 200, status_res.text
+        status_payload = status_res.json()
+        assert len(status_payload["answers"]) == 10
+        assert status_payload["answers"][6]["question_id"] == "predefined_clarification"
+        
+    finally:
+        clean_state(session_id)
+
 

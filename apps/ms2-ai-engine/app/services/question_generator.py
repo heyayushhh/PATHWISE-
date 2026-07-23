@@ -918,6 +918,13 @@ def generate_next_question(state: dict[str, Any]) -> dict[str, Any]:
         state["is_complete"] = True
         return {}
 
+    if next_q_id == "adaptive_1":
+        q_data = state.get("adaptive_clarification_question")
+        if q_data:
+            return q_data
+        # Fallback if Gemini-generated question is missing/invalid in state
+        next_q_id = "predefined_clarification"
+
     # 6. Safety check for valid branch target
     if not next_q_id or next_q_id not in bank:
         print(f"[Question Generator] ERROR: Invalid branch/next target '{next_q_id}' from '{last_q_id}'")
