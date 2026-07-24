@@ -11,6 +11,7 @@ import {
   academicDirectionCareers
 } from "./schemas";
 import { eq } from "drizzle-orm";
+import { SEED_CAREERS } from "./career_data";
 
 async function seed() {
   console.log("Seeding canonical knowledge...");
@@ -114,55 +115,11 @@ async function seed() {
   }
 
   // 2. Careers
-  const careersData = [
-    { 
-      slug: "software-engineer", title: "Software Engineer", careerFamily: "Technology", industry: "IT",
-      typicalResponsibilities: ["Writing code", "System design", "Debugging", "Testing"],
-      educationPathways: ["B.Tech CSE", "BCA", "B.Sc Computer Science"],
-      progression: ["Junior Dev -> Senior Dev -> Tech Lead -> Architect"],
-      futureOpportunities: ["High demand globally, remote work flexibility."]
-    },
-    { 
-      slug: "ai-ml-engineer", title: "AI/ML Engineer", careerFamily: "Technology", industry: "IT",
-      typicalResponsibilities: ["Building ML models", "Data processing", "Algorithm optimization"],
-      educationPathways: ["B.Tech CSE/AI", "B.Sc Mathematics/Stats", "Master's in AI"],
-      progression: ["Data Analyst -> ML Engineer -> Lead AI Scientist"],
-      futureOpportunities: ["Exponential growth field."]
-    },
-    { 
-      slug: "doctor", title: "Doctor (MBBS)", careerFamily: "Healthcare", industry: "Medical",
-      typicalResponsibilities: ["Patient diagnosis", "Prescribing treatment", "Performing procedures"],
-      educationPathways: ["MBBS -> MD/MS"],
-      progression: ["Resident -> Attending -> Specialist/Consultant"],
-      futureOpportunities: ["Stable, high respect, recession-proof."]
-    },
-    { 
-      slug: "chartered-accountant", title: "Chartered Accountant", careerFamily: "Finance", industry: "Finance",
-      typicalResponsibilities: ["Financial auditing", "Tax consulting", "Financial reporting"],
-      educationPathways: ["CA Foundation -> Intermediate -> Final", "B.Com"],
-      progression: ["Associate -> Manager -> Partner / CFO"],
-      futureOpportunities: ["Essential for all corporate businesses."]
-    },
-    { 
-      slug: "psychologist", title: "Psychologist", careerFamily: "Healthcare", industry: "Mental Health",
-      typicalResponsibilities: ["Counseling", "Behavioral assessment", "Therapy"],
-      educationPathways: ["BA/B.Sc Psychology -> MA/M.Sc -> Ph.D/M.Phil"],
-      progression: ["Counselor -> Clinical Psychologist -> Private Practice"],
-      futureOpportunities: ["Growing awareness of mental health."]
-    },
-    { 
-      slug: "graphic-designer", title: "Graphic Designer", careerFamily: "Design", industry: "Creative",
-      typicalResponsibilities: ["Creating visual concepts", "Branding", "UI design"],
-      educationPathways: ["B.Des", "BFA", "Self-taught portfolio"],
-      progression: ["Junior Designer -> Senior Designer -> Art Director"],
-      futureOpportunities: ["High freelance potential."]
-    },
-  ];
-
-  for (const car of careersData) {
-    await db.insert(careers).values(car).onConflictDoUpdate({
+  for (const car of SEED_CAREERS) {
+    const { compatibleDirections, skills: carSkillsData, courses: carCoursesData, ...coreCar } = car;
+    await db.insert(careers).values(coreCar).onConflictDoUpdate({
       target: careers.slug,
-      set: car,
+      set: coreCar,
     });
   }
 
@@ -219,8 +176,10 @@ async function seed() {
     });
   }
 
-  // 4. Skills
-  const skillsData = [
+  // 4. Skills (Gathered dynamically from careers and extra core ones)
+  const allSkillsMap = new Map<string, { slug: string; name: string; category: string }>();
+  // Seed initial basic skills
+  const basicSkills = [
     { slug: "programming", name: "Programming", category: "Technical" },
     { slug: "mathematics", name: "Mathematics", category: "Technical" },
     { slug: "analytical-thinking", name: "Analytical Thinking", category: "Cognitive" },
@@ -228,8 +187,21 @@ async function seed() {
     { slug: "creativity", name: "Creativity", category: "Cognitive" },
     { slug: "biology", name: "Biology", category: "Technical" },
   ];
+  for (const s of basicSkills) {
+    allSkillsMap.set(s.slug, s);
+  }
+  // Gather from SEED_CAREERS
+  for (const car of SEED_CAREERS) {
+    for (const sk of car.skills) {
+      allSkillsMap.set(sk.slug, {
+        slug: sk.slug,
+        name: sk.name,
+        category: sk.category,
+      });
+    }
+  }
 
-  for (const s of skillsData) {
+  for (const s of allSkillsMap.values()) {
     await db.insert(skills).values(s).onConflictDoUpdate({
       target: skills.slug,
       set: s,
@@ -238,10 +210,11 @@ async function seed() {
 
   // 5. Build Relations (Idempotent fetching of IDs)
   
-  // Helper to get ID by slug
+  // Helpers to get ID by slug
   const getDirId = async (slug: string) => (await db.query.academicDirections.findFirst({ where: eq(academicDirections.slug, slug) }))?.id;
   const getCarId = async (slug: string) => (await db.query.careers.findFirst({ where: eq(careers.slug, slug) }))?.id;
   const getCouId = async (slug: string) => (await db.query.courses.findFirst({ where: eq(courses.slug, slug) }))?.id;
+  const getSkiId = async (slug: string) => (await db.query.skills.findFirst({ where: eq(skills.slug, slug) }))?.id;
 
   const sciencePcmId = await getDirId("science-pcm");
   const sciencePcbId = await getDirId("science-pcb");
@@ -257,13 +230,6 @@ async function seed() {
   const baPsychId = await getCouId("ba-psychology");
   const bdesId = await getCouId("bdes");
 
-  const sweId = await getCarId("software-engineer");
-  const aimlId = await getCarId("ai-ml-engineer");
-  const docId = await getCarId("doctor");
-  const caId = await getCarId("chartered-accountant");
-  const psychId = await getCarId("psychologist");
-  const gdId = await getCarId("graphic-designer");
-
   // Rel: Academic Direction -> Courses
   if (sciencePcmId && btechCseId) await db.insert(academicDirectionCourses).values({ academicDirectionId: sciencePcmId, courseId: btechCseId });
   if (sciencePcmId && btechAimlId) await db.insert(academicDirectionCourses).values({ academicDirectionId: sciencePcmId, courseId: btechAimlId });
@@ -273,45 +239,100 @@ async function seed() {
   if (humanitiesId && baPsychId) await db.insert(academicDirectionCourses).values({ academicDirectionId: humanitiesId, courseId: baPsychId });
   if (designId && bdesId) await db.insert(academicDirectionCourses).values({ academicDirectionId: designId, courseId: bdesId });
 
-  // Rel: Academic Direction -> Careers
-  if (sciencePcmId && sweId) await db.insert(academicDirectionCareers).values({ academicDirectionId: sciencePcmId, careerId: sweId });
-  if (sciencePcmId && aimlId) await db.insert(academicDirectionCareers).values({ academicDirectionId: sciencePcmId, careerId: aimlId });
-  if (sciencePcbId && docId) await db.insert(academicDirectionCareers).values({ academicDirectionId: sciencePcbId, careerId: docId });
-  if (commerceId && caId) await db.insert(academicDirectionCareers).values({ academicDirectionId: commerceId, careerId: caId });
-  if (commerceMathId && caId) await db.insert(academicDirectionCareers).values({ academicDirectionId: commerceMathId, careerId: caId });
-  if (humanitiesId && psychId) await db.insert(academicDirectionCareers).values({ academicDirectionId: humanitiesId, careerId: psychId });
-  if (designId && gdId) await db.insert(academicDirectionCareers).values({ academicDirectionId: designId, careerId: gdId });
+  // Rel: Course Eligibility
+  if (btechCseId) {
+    await db.insert(courseEligibility).values({
+      courseId: btechCseId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["PCM", "PCMB"]),
+      mathematicsRequired: true,
+      biologyRequired: false,
+      minimumPercentage: 60,
+    });
+  }
+  if (btechAimlId) {
+    await db.insert(courseEligibility).values({
+      courseId: btechAimlId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["PCM", "PCMB"]),
+      mathematicsRequired: true,
+      biologyRequired: false,
+      minimumPercentage: 60,
+    });
+  }
+  if (mbbsId) {
+    await db.insert(courseEligibility).values({
+      courseId: mbbsId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["PCB", "PCMB"]),
+      mathematicsRequired: false,
+      biologyRequired: true,
+      minimumPercentage: 50,
+    });
+  }
+  if (bcomId) {
+    await db.insert(courseEligibility).values({
+      courseId: bcomId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["Commerce", "Commerce with Math", "PCM", "PCMB", "Humanities", "Arts"]),
+      mathematicsRequired: false,
+      biologyRequired: false,
+    });
+  }
+  if (baPsychId) {
+    await db.insert(courseEligibility).values({
+      courseId: baPsychId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["ANY", "Humanities", "Arts", "Science", "Commerce"]),
+      mathematicsRequired: false,
+      biologyRequired: false,
+    });
+  }
+  if (bdesId) {
+    await db.insert(courseEligibility).values({
+      courseId: bdesId,
+      academicStage: "Class 12",
+      allowedStreams: JSON.stringify(["ANY"]),
+      mathematicsRequired: false,
+      biologyRequired: false,
+    });
+  }
 
-  // Rel: Course -> Careers
-  if (sweId && btechCseId) await db.insert(careerCourses).values({ careerId: sweId, courseId: btechCseId });
-  if (aimlId && btechAimlId) await db.insert(careerCourses).values({ careerId: aimlId, courseId: btechAimlId });
-  if (docId && mbbsId) await db.insert(careerCourses).values({ careerId: docId, courseId: mbbsId });
-  if (caId && bcomId) await db.insert(careerCourses).values({ careerId: caId, courseId: bcomId });
-  if (psychId && baPsychId) await db.insert(careerCourses).values({ careerId: psychId, courseId: baPsychId });
-  if (gdId && bdesId) await db.insert(careerCourses).values({ careerId: gdId, courseId: bdesId });
+  // Loop through SEED_CAREERS to build relations dynamically
+  for (const car of SEED_CAREERS) {
+    const carId = await getCarId(car.slug);
+    if (!carId) continue;
 
-  // Rel: Career -> Skills
-  const getSkiId = async (slug: string) => (await db.query.skills.findFirst({ where: eq(skills.slug, slug) }))?.id;
-  const progSkillId = await getSkiId("programming");
-  const mathSkillId = await getSkiId("mathematics");
-  const analSkillId = await getSkiId("analytical-thinking");
-  const commSkillId = await getSkiId("communication");
-  const creaSkillId = await getSkiId("creativity");
-  const biolSkillId = await getSkiId("biology");
+    // Rel: Academic Direction -> Careers
+    for (const dirSlug of car.compatibleDirections) {
+      const dirId = await getDirId(dirSlug);
+      if (dirId) {
+        await db.insert(academicDirectionCareers).values({ academicDirectionId: dirId, careerId: carId });
+      }
+    }
 
-  if (sweId && progSkillId) await db.insert(careerSkills).values({ careerId: sweId, skillId: progSkillId, importanceWeight: "0.95" });
-  if (sweId && analSkillId) await db.insert(careerSkills).values({ careerId: sweId, skillId: analSkillId, importanceWeight: "0.90" });
-  if (aimlId && progSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: progSkillId, importanceWeight: "0.95" });
-  if (aimlId && mathSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: mathSkillId, importanceWeight: "0.95" });
-  if (aimlId && analSkillId) await db.insert(careerSkills).values({ careerId: aimlId, skillId: analSkillId, importanceWeight: "0.90" });
-  if (docId && biolSkillId) await db.insert(careerSkills).values({ careerId: docId, skillId: biolSkillId, importanceWeight: "0.95" });
-  if (docId && commSkillId) await db.insert(careerSkills).values({ careerId: docId, skillId: commSkillId, importanceWeight: "0.90" });
-  if (caId && mathSkillId) await db.insert(careerSkills).values({ careerId: caId, skillId: mathSkillId, importanceWeight: "0.90" });
-  if (caId && analSkillId) await db.insert(careerSkills).values({ careerId: caId, skillId: analSkillId, importanceWeight: "0.85" });
-  if (psychId && commSkillId) await db.insert(careerSkills).values({ careerId: psychId, skillId: commSkillId, importanceWeight: "0.95" });
-  if (psychId && analSkillId) await db.insert(careerSkills).values({ careerId: psychId, skillId: analSkillId, importanceWeight: "0.80" });
-  if (gdId && creaSkillId) await db.insert(careerSkills).values({ careerId: gdId, skillId: creaSkillId, importanceWeight: "0.95" });
-  if (gdId && commSkillId) await db.insert(careerSkills).values({ careerId: gdId, skillId: commSkillId, importanceWeight: "0.80" });
+    // Rel: Course -> Careers
+    if (car.courses) {
+      for (const couSlug of car.courses) {
+        const couId = await getCouId(couSlug);
+        if (couId) {
+          await db.insert(careerCourses).values({ careerId: carId, courseId: couId, isPrimary: true });
+        }
+      }
+    }
+
+    // Rel: Career -> Skills
+    for (const sk of car.skills) {
+      const skId = await getSkiId(sk.slug);
+      if (skId) {
+        await db.insert(careerSkills).values({
+          careerId: carId,
+          skillId: skId,
+          importanceWeight: sk.weight
+        });
+      }
+    }
+  }
 
   console.log("Canonical knowledge seeded successfully!");
 }

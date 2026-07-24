@@ -188,6 +188,9 @@ export default function ResultsPage() {
   }, [resolvedSessionId]);
 
   const normalizedCareers = (result?.recommendations ?? []).map(normalizeCareer);
+  const isClass10 = result?.recommendationType === "academic_direction" || result?.academicStage === "Class 10";
+  const academicMatches = isClass10 ? normalizedCareers.filter(c => c.type === "ACADEMIC_DIRECTION") : [];
+  const careerMatches = isClass10 ? normalizedCareers.filter(c => c.type === "CAREER" || c.type === "COURSE") : normalizedCareers;
 
   if (isLoading) {
     return (
@@ -256,7 +259,7 @@ export default function ResultsPage() {
 
       <div className="space-y-6">
         {/* Top Match Card */}
-        {normalizedCareers.length > 0 && (
+        {((isClass10 && academicMatches.length > 0) || (!isClass10 && normalizedCareers.length > 0)) && (
           <Card className="p-8 rounded-3xl border border-border shadow-md bg-card relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 relative z-10">
@@ -267,14 +270,14 @@ export default function ResultsPage() {
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <h2 className="text-2xl font-extrabold font-display text-foreground">
-                      Top Match: {normalizedCareers[0].title}
+                      {isClass10 ? `Top Academic Match: ${academicMatches[0].title}` : `Top Match: ${normalizedCareers[0].title}`}
                     </h2>
                     <span className="rounded-full bg-primary/10 text-primary px-3 py-1 text-sm font-bold">
-                      {normalizedCareers[0].score}
+                      {isClass10 ? academicMatches[0].score : normalizedCareers[0].score}
                     </span>
                   </div>
                   <p className="text-muted-foreground max-w-2xl leading-relaxed">
-                    {normalizedCareers[0].reason}
+                    {isClass10 ? academicMatches[0].reason : normalizedCareers[0].reason}
                   </p>
                 </div>
               </div>
@@ -299,10 +302,11 @@ export default function ResultsPage() {
             </Button>
           </div>
         )}
-        <div className="space-y-4">
 
-          {normalizedCareers.map((career) => (
-            <Card key={career.title} className="p-6 rounded-3xl border border-border shadow-sm bg-card hover:border-primary/30 transition-all">
+        <div className="space-y-4">
+          {/* Render Academic Alternatives for Class 10, or general alternatives for Class 12 */}
+          {(isClass10 ? academicMatches.slice(1) : normalizedCareers.slice(1)).map((career) => (
+            <Card key={career.slug} className="p-6 rounded-3xl border border-border shadow-sm bg-card hover:border-primary/30 transition-all">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-center gap-6 md:gap-10">
                   {/* Match Score */}
@@ -311,40 +315,23 @@ export default function ResultsPage() {
                     <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">match</div>
                   </div>
 
-                  {/* Career Info */}
+                  {/* Info */}
                   <div>
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-bold font-display text-foreground">{career.title}</h3>
                       <span className="rounded-full bg-secondary px-3 py-0.5 text-[10px] font-bold text-secondary-foreground uppercase">
-                        {result?.academic_stage || "Any"}
+                        {career.type === "ACADEMIC_DIRECTION" ? "Stream" : "Course"}
                       </span>
                     </div>
-                    {(career.salary || career.demand) && (
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-medium mt-1">
-                        {career.salary && <span>Salary: {career.salary}</span>}
-                        {career.demand && <span>Demand: {career.demand}</span>}
-                      </div>
-                    )}
+                    <p className="text-muted-foreground text-sm max-w-xl">{career.reason}</p>
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  {career.type === "ACADEMIC_DIRECTION" ? (
-                    <Link href={`/dashboard/explore/path/${career.slug}?sessionId=${resolvedSessionId}`}>
-                      <Button variant="ghost" className="font-bold px-4">View</Button>
-                    </Link>
-                  ) : career.type === "COURSE" ? (
-                    <Link href={`/dashboard/explore/course/${career.slug}?sessionId=${resolvedSessionId}`}>
-                      <Button variant="ghost" className="font-bold px-4">View</Button>
-                    </Link>
-                  ) : career.type === "CAREER" ? (
-                    <Link href={`/dashboard/explore/career/${career.slug}?sessionId=${resolvedSessionId}`}>
-                      <Button variant="ghost" className="font-bold px-4">View</Button>
-                    </Link>
-                  ) : (
+                  <Link href={`/dashboard/explore/${career.type === "ACADEMIC_DIRECTION" ? "path" : "course"}/${career.slug}?sessionId=${resolvedSessionId}`}>
                     <Button variant="ghost" className="font-bold px-4">View</Button>
-                  )}
+                  </Link>
                   <Button 
                     variant="ghost" 
                     className={`font-bold px-4 ${compareList.some(item => item.slug === career.slug) ? "text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20" : ""}`}
@@ -352,19 +339,81 @@ export default function ResultsPage() {
                   >
                     {compareList.some(item => item.slug === career.slug) ? "Selected" : "Compare"}
                   </Button>
-
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => handleToggleSelectCareer(career.id || "legacy", career.title || (career as any).career_name || "Unknown Match")}
-                    className={career.isTarget ? "text-primary" : "text-muted-foreground hover:text-primary"}
-                  >
-                    <Star size={20} fill={career.isTarget ? "currentColor" : "none"} />
-                  </Button>
                 </div>
               </div>
             </Card>
           ))}
+
+          {/* Render Career Possibilities Section for Class 10 */}
+          {isClass10 && careerMatches.length > 0 && (
+            <div className="pt-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-extrabold font-display text-foreground flex items-center gap-2">
+                  <Briefcase className="h-6 w-6 text-primary" /> Career Possibilities Based on Your Profile
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  These careers complement your recommended academic stream. Select one to set as your target and view your roadmap.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {careerMatches.map((career, index) => (
+                  <Card key={career.slug} className={`p-6 rounded-3xl border shadow-sm bg-card transition-all ${career.isTarget ? "border-primary/50 ring-1 ring-primary/20 bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="flex items-center gap-6 md:gap-10">
+                        {/* Match Score */}
+                        <div className="text-center min-w-[80px]">
+                          <div className="text-xl font-bold text-foreground">{career.score?.replace('% Match', '%')}</div>
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">match</div>
+                        </div>
+
+                        {/* Info */}
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-bold font-display text-foreground">
+                              #{index + 1} {career.title}
+                            </h3>
+                            <span className="rounded-full bg-secondary px-3 py-0.5 text-[10px] font-bold text-secondary-foreground uppercase">
+                              {career.careerFamily || "Career"}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground text-sm max-w-xl">{career.reason}</p>
+                          {career.skills && career.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {career.skills.map((s: string) => (
+                                <span key={s} className="px-2 py-0.5 rounded bg-muted text-[10px] font-semibold text-muted-foreground">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dashboard/explore/career/${career.slug}?sessionId=${resolvedSessionId}`}>
+                          <Button variant="ghost" className="font-bold px-4">View</Button>
+                        </Link>
+                        <Button 
+                          variant="ghost" 
+                          className={`font-bold px-4 ${compareList.some(item => item.slug === career.slug) ? "text-primary bg-primary/10 border border-primary/20 hover:bg-primary/20" : ""}`}
+                          onClick={() => handleCompareClick({ id: career.id, slug: career.slug, type: career.type, title: career.title })}
+                        >
+                          {compareList.some(item => item.slug === career.slug) ? "Selected" : "Compare"}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleToggleSelectCareer(career.id || "legacy", career.title || "Unknown Match")}
+                          className={career.isTarget ? "text-primary" : "text-muted-foreground hover:text-primary"}
+                        >
+                          <Star size={20} fill={career.isTarget ? "currentColor" : "none"} />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

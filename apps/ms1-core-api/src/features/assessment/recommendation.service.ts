@@ -43,8 +43,8 @@ export class RecommendationService {
   async saveRecommendations(userId: string, sessionId: string, academicStage: string, scoredRecommendations: any[]) {
     // Final Safety Boundary Validation
     if (academicStage === "Class 10") {
-      const hasInvalid = scoredRecommendations.some(r => r.recommendation_type !== "ACADEMIC_DIRECTION");
-      if (hasInvalid) throw new Error("Invariant Violation: Class 10 assessment must only contain ACADEMIC_DIRECTION recommendations.");
+      const hasInvalid = scoredRecommendations.some(r => r.recommendation_type !== "ACADEMIC_DIRECTION" && r.recommendation_type !== "CAREER");
+      if (hasInvalid) throw new Error("Invariant Violation: Class 10 assessment must only contain ACADEMIC_DIRECTION or CAREER recommendations.");
     } else if (academicStage === "Class 12") {
       const hasInvalid = scoredRecommendations.some(r => r.recommendation_type !== "COURSE" && r.recommendation_type !== "CAREER");
       if (hasInvalid) throw new Error("Invariant Violation: Class 12 assessment must only contain COURSE or CAREER recommendations.");
@@ -62,7 +62,7 @@ export class RecommendationService {
         userId,
         assessmentSessionId: sessionId,
         academicStage,
-        algorithmVersion: "deterministic-v1",
+        algorithmVersion: "deterministic-v2",
         generationSource: "DETERMINISTIC",
       }).returning();
 
@@ -139,7 +139,7 @@ export class RecommendationService {
     items.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
 
     // Detect legacy broken state from PostgreSQL
-    if (set.academicStage === "Class 10") {
+    if (set.academicStage === "Class 10" && set.algorithmVersion === "deterministic-v1") {
       const hasInvalid = items.some(item => 
         item.recommendation_type === "CAREER" || 
         item.recommendation_type === "COURSE" || 
