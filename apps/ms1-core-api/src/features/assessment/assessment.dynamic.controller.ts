@@ -35,7 +35,7 @@ async function restoreSessionInMs2(sessionId: string): Promise<boolean> {
 }
 
 import { db } from "../../db";
-import { academicDirections, careers, courses, studentAssessmentProfiles } from "../../db/schemas";
+import { academicDirections, careers, courses, studentAssessmentProfiles, careerSkills, skills, academicDirectionCareers } from "../../db/schemas";
 import { recommendationService } from "./recommendation.service";
 import { eq } from "drizzle-orm";
 
@@ -236,15 +236,54 @@ async function orchestrateRecommendations(
   // 3. Branch by session.academicStage.
   let candidates = [];
   let candidateTypes: string[] = [];
+
+  // Query all careers with their skills and academic directions to send to MS2
+  const dbCareers = await db.select().from(careers);
+  
+  const dbCareerSkills = await db.select({
+    careerId: careerSkills.careerId,
+    skillName: skills.name,
+    importanceWeight: careerSkills.importanceWeight,
+  }).from(careerSkills).innerJoin(skills, eq(careerSkills.skillId, skills.id));
+
+  const dbDirectionCareers = await db.select({
+    careerId: academicDirectionCareers.careerId,
+    directionSlug: academicDirections.slug,
+  }).from(academicDirectionCareers).innerJoin(academicDirections, eq(academicDirectionCareers.academicDirectionId, academicDirections.id));
+
+  const careerCandidates = dbCareers.map(c => {
+    const skillsForCareer = dbCareerSkills
+      .filter(s => s.careerId === c.id)
+      .map(s => ({ name: s.skillName, weight: s.importanceWeight }));
+    const directionsForCareer = dbDirectionCareers
+      .filter(d => d.careerId === c.id)
+      .map(d => d.directionSlug);
+
+    return {
+      id: c.id,
+      slug: c.slug,
+      title: c.title,
+      type: "CAREER",
+      careerFamily: c.careerFamily,
+      industry: c.industry,
+      educationLevel: c.educationLevel,
+      shortDescription: c.shortDescription,
+      fullDescription: c.fullDescription,
+      typicalResponsibilities: c.typicalResponsibilities,
+      educationPathways: c.educationPathways,
+      progression: c.progression,
+      futureOpportunities: c.futureOpportunities,
+      skills: skillsForCareer,
+      compatibleDirections: directionsForCareer,
+    };
+  });
+
   if (academicStage === "Class 10") {
     const dbDirections = await db.select().from(academicDirections);
-    candidates = dbDirections.map(d => ({ id: d.id, slug: d.slug, title: d.title, type: "ACADEMIC_DIRECTION" }));
-    candidateTypes = ["ACADEMIC_DIRECTION"];
+    const directionCandidates = dbDirections.map(d => ({ id: d.id, slug: d.slug, title: d.title, type: "ACADEMIC_DIRECTION" }));
+    candidates = [...directionCandidates, ...careerCandidates];
+    candidateTypes = ["ACADEMIC_DIRECTION", "CAREER"];
   } else {
-    // Class 12: Careers + Eligible Courses
-    const dbCareers = await db.select().from(careers);
-    const careerCandidates = dbCareers.map(c => ({ id: c.id, slug: c.slug, title: c.title, type: "CAREER", careerFamily: c.careerFamily }));
-    
     // Filter courses by eligibility (current stream)
     const dbCourses = await db.select().from(courses);
     const { courseEligibility } = await import("../../db/schemas");
@@ -256,7 +295,7 @@ async function orchestrateRecommendations(
       const elig = eligibilities.find(e => e.courseId === course.id);
       if (!elig || !elig.allowedStreams) return true;
       try {
-        const allowed = JSON.parse(elig.allowedStreams);
+        const allowed = JSON.parse(elig.allowedStreams as string);
         if (Array.isArray(allowed)) {
           return allowed.includes(userStream) || allowed.includes("ANY") || allowed.length === 0;
         }
@@ -279,8 +318,8 @@ async function orchestrateRecommendations(
 
   // Enforce strict invariants before sending to MS2
   if (academicStage === "Class 10") {
-    const hasInvalid = candidates.some(c => c.type !== "ACADEMIC_DIRECTION");
-    if (hasInvalid) throw new Error("Invariant Violation: Class 10 assessment must only contain ACADEMIC_DIRECTION candidates");
+    const hasInvalid = candidates.some(c => c.type !== "ACADEMIC_DIRECTION" && c.type !== "CAREER");
+    if (hasInvalid) throw new Error("Invariant Violation: Class 10 assessment must only contain ACADEMIC_DIRECTION or CAREER candidates");
   } else if (academicStage === "Class 12") {
     const hasInvalid = candidates.some(c => c.type !== "COURSE" && c.type !== "CAREER");
     if (hasInvalid) throw new Error("Invariant Violation: Class 12 assessment must only contain COURSE or CAREER candidates");
@@ -298,9 +337,9 @@ async function orchestrateRecommendations(
   };
 
   console.log(`\n[MS1 Scoring Payload]`);
-  console.log(`Academic Stage: ${enrichedProfile.academic_stage}`);
-  console.log(`Raw Answers Count: ${enrichedProfile.answers?.length || 0}`);
-  console.log(`Candidates Sent: ${candidates.length}\n`);
+  console.log('Academic Stage:', enrichedProfile.academic_stage);
+  console.log('Raw Answers Count:', enrichedProfile.answers?.length || 0);
+  console.log('Candidates Sent:', candidates.length);
 
   const scoreRes = await fetch(`${config.aiEngineUrl}/assessment/score`, {
     method: "POST",

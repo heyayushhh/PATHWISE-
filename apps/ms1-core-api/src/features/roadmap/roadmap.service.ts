@@ -4,8 +4,8 @@ import { eq, and } from "drizzle-orm";
 import { buildRoadmapContext } from "./roadmap.context";
 
 const MS2_URL = process.env.MS2_INTERNAL_URL || "http://127.0.0.1:3002";
-export const ROADMAP_VERSION = 1;
-export const PROMPT_VERSION = 1;
+export const ROADMAP_VERSION = 2;
+export const PROMPT_VERSION = 2;
 
 export class RoadmapService {
   /**

@@ -65,23 +65,70 @@ def build_canonical_allowlist(state: RoadmapState) -> RoadmapState:
     return state
 
 def generate_roadmap(state: RoadmapState) -> RoadmapState:
-    print("\n========== GENERATE ROADMAP ==========")
+    print("\n========== GENERATE ROADMAP (V2) ==========")
+    
+    canonical_target = state['context'].get('canonicalTarget', {})
+    profile = state['context'].get('assessmentProfile', {})
+    
+    # Extract details for career grounding
+    title = canonical_target.get('title', 'Unknown')
+    short_desc = canonical_target.get('shortDescription', '')
+    full_desc = canonical_target.get('fullDescription', '')
+    family = canonical_target.get('careerFamily', '')
+    industry = canonical_target.get('industry', '')
+    responsibilities = canonical_target.get('typicalResponsibilities', [])
+    pathways = canonical_target.get('educationPathways', [])
+    progression = canonical_target.get('progression', [])
+    opportunities = canonical_target.get('futureOpportunities', [])
+    skills = [s.get('name') for s in canonical_target.get('relatedSkills', [])]
+    courses = [c.get('title') for c in canonical_target.get('relatedCourses', [])]
+    
+    student_stage = profile.get('academicStage', 'Class 10')
+    stream = profile.get('currentStream', '')
     
     prompt = f"""
+You are generating a highly personalized, structured career-specific roadmap for:
+Target Career: {title}
+Career Family: {family}
+Industry: {industry}
+Career Description: {short_desc} {full_desc}
+
+Career Context (Grounding - Do NOT contradict these facts or invent unrelated requirements):
+- Typical Responsibilities: {json.dumps(responsibilities)}
+- Education Pathways: {json.dumps(pathways)}
+- Career Progression: {json.dumps(progression)}
+- Skills Required: {json.dumps(skills)}
+- Recommended Courses: {json.dumps(courses)}
+
 Student Profile:
-{json.dumps(state['context'].get('assessmentProfile', {}), indent=2)}
+- Current Academic Stage: {student_stage}
+- Current Stream: {stream}
+- Profile Details: {json.dumps(profile, indent=2)}
 
-Selected Target: {state['context'].get('canonicalTarget', {}).get('title', 'Unknown')}
-Target Type: {state['roadmap_type']}
-Match Score: {state['context'].get('matchScore', 0)}%
+Task:
+Generate a career-specific milestone roadmap starting from the student's CURRENT academic stage ({student_stage}) leading to the target career ({title}).
 
-Canonical Allowlist (ONLY use these slugs if referencing resources):
+Prompt V2 Strict Instructions:
+1. Ground the roadmap in the provided Career Context. Do not invent unrelated qualifications or pathways.
+2. Start from the student's current stage ({student_stage}). If the student is in Class 10, milestones must guide them through Class 11/12 choice, college preparation, and college. If the student is in Class 12, it must start with post-12th exams/college options and focus on higher education.
+3. Be highly specific to "{title}". Do not provide generic "launch career" milestones. Specify concrete milestones (e.g. for AI/ML: learning programming/math in high school -> pursuing B.Tech CSE or B.Sc Stats -> learning ML algorithms/Python -> doing projects -> internships -> entry role).
+4. Do not assume engineering/JEE is required for every technology/science career unless it is a core pathway. Do not assume MBBS/NEET is required for every biology career (only doctors require MBBS/NEET; researchers, biotechnologists, microbiologists do not!). Suggest alternative pathways (e.g., B.Sc, B.Des, etc.) where appropriate.
+5. Identify exams and certifications ONLY if they are actually relevant (e.g., CA Foundation/IPCC for Chartered Accountant, NEET for Doctor, NID/UCEED for Designer). Do NOT recommend JEE for a Commerce or Arts career!
+6. Each milestone must contain:
+   - title: specific to this stage (e.g. "Acquire Machine Learning & Statistics Depth")
+   - stage: academic or career stage
+   - timeframe: realistic timeframe (e.g. "Year 1-2 of College")
+   - description: 2-3 sentences explaining what this milestone is about and why it matters.
+   - objectives: list of 2-3 specific objectives
+   - actions: list of 3-5 concrete action items with priority and timeframe
+   - skills: list of 3-4 skills to develop
+   - canonicalResources: list of resources from the allowlist
+   - completionCriteria: 2-3 clear criteria of accomplishment
+
+Allowlist:
 {json.dumps(state['allowlist'], indent=2)}
 
-Personalized Insight for Context:
-{json.dumps(state['context'].get('personalizedInsight', {}), indent=2)}
-
-Generate the personalized roadmap.
+Ensure the output matches the required JSON schema structure exactly.
 """
     try:
         response_model = PersonalizedRoadmapResponse
@@ -91,8 +138,30 @@ Generate the personalized roadmap.
             prompt=full_prompt,
             schema=response_model
         )
+        
+        # 1. Print the RAW LLM response before any json.loads() call
+        print("\n========== RAW LLM RESPONSE ==========")
+        print(response_text)
+        print("======================================\n")
+        
         if response_text:
-            state["generated_roadmap"] = json.loads(response_text)
+            # 3-5. Make the parser robust by safely extracting the first complete JSON object
+            cleaned_text = response_text.strip()
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            cleaned_text = cleaned_text.strip()
+            
+            # Extract first complete JSON object
+            first_brace = cleaned_text.find('{')
+            last_brace = cleaned_text.rfind('}')
+            if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                cleaned_text = cleaned_text[first_brace:last_brace+1]
+                
+            state["generated_roadmap"] = json.loads(cleaned_text)
         else:
             state["error"] = "Gemini generation failed: empty response"
     except Exception as e:
