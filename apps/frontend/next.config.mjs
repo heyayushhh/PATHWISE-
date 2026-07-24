@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: process.env.NEXT_STANDALONE ? "standalone" : undefined,
+  output: "standalone",
 };
 
 export default nextConfig;
