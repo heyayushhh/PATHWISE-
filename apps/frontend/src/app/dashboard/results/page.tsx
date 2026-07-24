@@ -34,6 +34,7 @@ function normalizeCareer(recommendation: CareerRecommendation) {
       demand: (recommendation as any).futureDemand || null,
       isTarget: false,
       type: "legacy",
+      careerFamily: null as string | null,
     };
   }
 
@@ -50,6 +51,7 @@ function normalizeCareer(recommendation: CareerRecommendation) {
     isTarget: (recommendation as any).is_target || false,
     type: (recommendation as any).recommendation_type || (recommendation as any).type,
     slug: (recommendation as any).slug,
+    careerFamily: (recommendation as any).careerFamily || null,
   };
 }
 
